@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, errorText } from '../lib/supabase';
-import { relativeTime, formatTimestamp } from '../lib/dates';
+import { dateOf, formatDate, formatTimestamp } from '../lib/dates';
 import type { Creative } from '../lib/types';
 
 /** '2.4 MB' — file sizes are the one place a rounded number is fine. */
@@ -125,8 +125,15 @@ export function CreativeList({
 
               <div className="creative-body">
                 <div className="creative-title">{c.title}</div>
+                {/*
+                  A date, not "added 3 days ago". This list is rendered on the
+                  client's own Creatives page, and a relative stamp there reads
+                  as a comment on how recently we did anything — which is not
+                  what the line is for. When a creative was delivered is a fact
+                  worth having; how long ago it was is a nudge.
+                */}
                 <div className="muted sm" title={formatTimestamp(c.created_at)}>
-                  {fileSize(c.size_bytes)} · added {relativeTime(c.created_at)}
+                  {fileSize(c.size_bytes)} · added {formatDate(dateOf(c.created_at))}
                 </div>
                 {c.note && <p className="note sm">{c.note}</p>}
               </div>

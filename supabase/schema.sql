@@ -342,12 +342,18 @@ create table public.invoices (
 
   number       text not null check (char_length(number) between 1 and 60),
 
-  -- NOT NULL, unlike the first draft. The client-facing month dropdown groups
-  -- invoices by period_start — that is what "my August invoice" means — and a
-  -- nullable column there buys an "Undated" bucket nobody wants to explain.
-  period_start date not null,
-  period_end   date not null,
-  constraint invoices_period_order check (period_end >= period_start),
+  -- The date printed on the invoice, and the one thing every invoice format
+  -- agrees to show. NOT NULL because the client-facing month dropdown groups by
+  -- it, and a nullable column there buys an "Undated" bucket nobody wants to
+  -- explain.
+  --
+  -- This replaced a period_start/period_end range. The range was a guess at what
+  -- "my August invoice" means, and the documents disagree with it: SGB/26-27/0007
+  -- is dated 2 July 2026 and bills a June campaign, so filing by period put the
+  -- invoice in a month its own face does not mention. The range was also typed
+  -- by hand from a "Campaign Duration" line and usually left on its default,
+  -- whereas issue_date can be read straight off the PDF — see `invoicePdf.ts`.
+  issue_date   date not null,
 
   amount       numeric(14,2) check (amount >= 0),
   currency     text not null default 'INR' check (currency ~ '^[A-Z]{3}$'),
@@ -374,9 +380,9 @@ create table public.invoices (
 
 create index invoices_client_created_idx on public.invoices (client_id, created_at desc);
 
--- The month dropdown reads distinct period_start months for one client, then
+-- The month dropdown reads distinct issue_date months for one client, then
 -- filters to a range. Both go through this.
-create index invoices_client_period_idx on public.invoices (client_id, period_start desc);
+create index invoices_client_issue_idx on public.invoices (client_id, issue_date desc);
 
 
 -- ---------------------------------------------------------------------------

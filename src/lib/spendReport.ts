@@ -51,20 +51,28 @@ export const SPEND_FIELDS = [
 export type SpendField = (typeof SPEND_FIELDS)[number];
 
 /**
- * The subset of `SPEND_FIELDS` that may be summed across MORE THAN ONE DAY.
+ * The three columns the by-campaign breakdown reports.
  *
- * Use this — never `SPEND_FIELDS` — whenever the rows being folded span a date
- * range rather than a single date. Spend and impressions are quantities a day
- * produced, so a week or a month of them adds up. The two projection columns are
- * a standing forecast that ops restates every day, so adding them across days
- * reports the target several times over. The same distinction is enforced for
- * the month total by `spendTotals`; this constant is how it is enforced for any
- * other multi-day grouping, such as the by-campaign breakdown.
+ * Named for a rule — the fields safe to sum across more than one day — and
+ * `projected_leads` now satisfies it, for the reasons set out on `SpendTotals`:
+ * the stored figure tracks each day's spend rather than restating a standing
+ * target, so a campaign's month of them adds up to that campaign's projection.
  *
- * Within a single day the rule inverts and `SPEND_FIELDS` is correct: each
- * campaign carries its own forecast, and the day's forecast is their sum.
+ * It was previously left out of this card even so, on the argument that a
+ * forecast column beside each campaign's spend reads as leads that campaign
+ * DELIVERED — a measurement Adovia does not publish. That risk is real and has
+ * not gone away; it is now handled where it belongs, by naming the column
+ * "Projected leads" in both the table and the file rather than by withholding
+ * the figure. A client who asks which campaign their projection comes from is
+ * asking a fair question, and the answer was already derivable by switching the
+ * filter campaign by campaign and reading the footer each time.
+ *
+ * `projected_admissions` stays out of the per-campaign split specifically. It
+ * is totalled for the month now (see `SpendTotals`), but no row states it, so a
+ * per-campaign column would be one dash per campaign — a column that only ever
+ * says "we don't know" broken down four ways.
  */
-export const SPEND_ACCRUING_FIELDS = ['ad_spend', 'impressions'] as const;
+export const SPEND_ACCRUING_FIELDS = ['ad_spend', 'impressions', 'projected_leads'] as const;
 
 export type SpendAccruingField = (typeof SPEND_ACCRUING_FIELDS)[number];
 
@@ -84,28 +92,61 @@ const SPEND_HEADERS = [
 ] as const;
 
 /**
- * Month totals for the two columns it is safe to add up.
+ * Month totals for the three columns it is safe to add up.
  *
  * Spend and impressions are quantities the day produced, so a month's worth of
- * them sums. The projections are not: ops prefills each day's projected leads
- * and admissions from the day before, so they behave as a standing forecast
- * that is restated daily rather than accrued. Adding thirty copies of one
- * forecast would report thirty times the target, so those cells stay empty in
- * both the table and the export.
+ * them sums.
+ *
+ * `leads` is the newer one and it reverses an earlier decision here, so the
+ * reasoning is worth keeping. This cell used to be deliberately empty, on the
+ * grounds that ops prefills each day's projections from the day before and a
+ * month of them is therefore one standing forecast restated thirty times. The
+ * stored data does not behave that way: `projected_leads` moves every day in
+ * proportion to that day's spend — around one lead per ₹1,400 across Jaro's PR
+ * campaign — and falls to zero on days with no spend. It is a per-day figure
+ * derived from a per-day quantity, so a month of them adds up to the month's
+ * projection, which is the number a client is actually trying to read off this
+ * sheet.
+ *
+ * The carry-forward is still real, and it is the thing to watch. `DailyEntry`
+ * prefills tomorrow's projections from today's, and while a purely prefilled
+ * row is excluded from the save set, editing any other cell on that row clears
+ * the draft flag and commits the inherited figures with it. So a hand-entered
+ * client CAN accumulate repeated projections in a way an imported one does not,
+ * and this total would overstate them. That is an entry-side problem — the fix
+ * belongs in `DailyEntry`, not in a total that refuses to add up correct data.
+ *
+ * `admissions` is summed the same way, and the null return is what makes that
+ * safe rather than presumptuous. The column is null in every row currently
+ * stored, so there is still no evidence whether it behaves like leads or like a
+ * standing target — but `sumSpend` answers null for a month that states none,
+ * every surface renders that null as a dash or as "not yet entered", and none
+ * of them invents a 0. So while nothing states the figure this total is
+ * invisible in practice, and on the day ops starts entering it the month's
+ * projection appears on its own. If it turns out to be entered as a standing
+ * target rather than a per-day figure, this is the line to revisit — the same
+ * way `leads` was.
  */
 export interface SpendTotals {
   spend: number | null;
   impressions: number | null;
+  leads: number | null;
+  admissions: number | null;
 }
 
 /** Sums the stated values, and returns null when the month states none. */
-function sumSpend(rows: SpendRow[], key: 'ad_spend' | 'impressions'): number | null {
+function sumSpend(rows: SpendRow[], key: SpendField): number | null {
   const vals = rows.map((r) => r[key]).filter((v): v is number => typeof v === 'number');
   return vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0);
 }
 
 export function spendTotals(rows: SpendRow[]): SpendTotals {
-  return { spend: sumSpend(rows, 'ad_spend'), impressions: sumSpend(rows, 'impressions') };
+  return {
+    spend: sumSpend(rows, 'ad_spend'),
+    impressions: sumSpend(rows, 'impressions'),
+    leads: sumSpend(rows, 'projected_leads'),
+    admissions: sumSpend(rows, 'projected_admissions'),
+  };
 }
 
 /**
@@ -172,23 +213,32 @@ export function spendCsv(
       num(l.totals.projected_leads),
       num(l.totals.projected_admissions),
     ]),
-    // Only spend and impressions are summed. The two projection columns are
-    // left empty on purpose — see the note on SpendTotals.
-    [`${label} total`, num(totals.spend), num(totals.impressions), '', ''],
+    // All four columns total, and `num` writes an empty cell rather than a 0
+    // for any the month never states — which today is admissions, in every
+    // stored row. The file and the screen total the same four columns, so a
+    // client who exports what they are looking at gets the same footer they
+    // were reading.
+    [
+      `${label} total`,
+      num(totals.spend),
+      num(totals.impressions),
+      num(totals.leads),
+      num(totals.admissions),
+    ],
   ]);
 }
 
 /**
  * The month's split across campaigns as CSV — the by-campaign card, downloaded.
  *
- * Two columns, not four, and that is the whole reason this is a separate
- * function rather than `spendCsv` with a different first column. The projection
- * columns cannot appear here: each slice spans the month, and a standing
- * forecast restated daily would arrive in the file as the target multiplied by
- * the number of days the campaign ran. A spreadsheet cannot tell that from a
- * real number, and the person who opens it did not watch it being built. The
- * screen leaves those cells out for the same reason; a file that carried them
- * would be the version that gets forwarded.
+ * The projected leads column is named "Projected leads" here and not "Leads",
+ * and that is load-bearing rather than tidy. This file gets forwarded, opened
+ * by someone who did not watch it being built, and read as a record of what
+ * each campaign produced. The header is the only thing travelling with the
+ * number that says it is a forecast, so it says so.
+ *
+ * Admissions is absent for the reason given on `SPEND_ACCRUING_FIELDS`: nothing
+ * states it, so the column would be one empty cell per campaign.
  *
  * `days` is passed in rather than summed from the slices on purpose. Two
  * campaigns running on one day contribute two rows, so adding the slice counts
@@ -196,7 +246,13 @@ export function spendCsv(
  * and wrong under a column the reader will take as "days". It is the same
  * figure the table prints in that cell.
  */
-const CAMPAIGN_HEADERS = ['Campaign', 'Spend (INR)', 'Cumulative impressions', 'Days recorded'] as const;
+const CAMPAIGN_HEADERS = [
+  'Campaign',
+  'Spend (INR)',
+  'Cumulative impressions',
+  'Projected leads',
+  'Days recorded',
+] as const;
 
 export function campaignCsv(
   slices: readonly CampaignSlice<SpendAccruingField>[],
@@ -210,8 +266,15 @@ export function campaignCsv(
       c.name,
       num(c.totals.ad_spend),
       num(c.totals.impressions),
+      num(c.totals.projected_leads),
       String(c.rows),
     ]),
-    [`${label} total`, num(totals.spend), num(totals.impressions), String(days)],
+    [
+      `${label} total`,
+      num(totals.spend),
+      num(totals.impressions),
+      num(totals.leads),
+      String(days),
+    ],
   ]);
 }

@@ -26,8 +26,8 @@ import {
 import { rows as asRows, type Campaign, type DailyReport } from '../../lib/types';
 
 /**
- * Exactly the Spend report's five columns, plus what the page needs to date and
- * stamp them. Selecting the actuals we don't render would leave a second set of
+ * Exactly the Spend report's five columns, plus what the page needs to date
+ * them. Selecting the actuals we don't render would leave a second set of
  * figures one console tab away from a client — narrowing the query is how the
  * "one set of figures" promise stops depending on the JSX.
  *
@@ -35,12 +35,16 @@ import { rows as asRows, type Campaign, type DailyReport } from '../../lib/types
  * figures on this page are sums across the day's campaigns, and a query that
  * omitted the id would still return every row but leave the page unable to say
  * which campaign each one came from.
+ *
+ * `updated_at` used to be here to feed the stamp under each figure. That stamp
+ * is gone from the client's side, and by the rule above the column goes with
+ * it: a timestamp nobody renders is still a timestamp sitting in a network
+ * response, telling a reader how recently we were at our desks.
  */
 type Row = Pick<
   DailyReport,
   | 'date'
   | 'campaign_id'
-  | 'updated_at'
   | 'ad_spend'
   | 'impressions'
   | 'projected_leads'
@@ -49,7 +53,7 @@ type Row = Pick<
 >;
 
 const COLS =
-  'date, campaign_id, updated_at, ad_spend, impressions, projected_leads, projected_admissions, client_note';
+  'date, campaign_id, ad_spend, impressions, projected_leads, projected_admissions, client_note';
 
 /** One month's spend, with the number of days that figure actually rests on. */
 interface MonthSpend {
@@ -326,22 +330,6 @@ export default function Overview() {
    */
   const totals = useMemo(() => sumFields(rows, SPEND_FIELDS), [rows]);
 
-  /**
-   * The newest stamp on the day, not any one row's.
-   *
-   * Each campaign carries its own `updated_at`, and the figures above are a sum
-   * of all of them — so the honest answer to "when was this last touched" is
-   * the most recent edit that moved the number on screen.
-   */
-  const updatedAt = useMemo(
-    () =>
-      rows.reduce<string | null>(
-        (newest, r) => (newest === null || r.updated_at > newest ? r.updated_at : newest),
-        null,
-      ),
-    [rows],
-  );
-
   /** True when the day carries figures from more than one campaign. */
   const split = useMemo(() => isSplit(rows), [rows]);
 
@@ -444,33 +432,19 @@ export default function Overview() {
             one card away.
           */}
           <div className={`figures${rowLoading ? ' dim' : ''}`}>
-            <Figure
-              label="Ad spend"
-              value={totals.ad_spend}
-              format={money}
-              hero
-              updatedAt={updatedAt}
-            />
+            <Figure label="Ad spend" value={totals.ad_spend} format={money} hero />
             <Figure
               label="Cumulative impressions"
               value={totals.impressions}
               format={count}
               hero
-              updatedAt={updatedAt}
             />
-            <Figure
-              label="Projected leads"
-              value={totals.projected_leads}
-              format={count}
-              hero
-              updatedAt={updatedAt}
-            />
+            <Figure label="Projected leads" value={totals.projected_leads} format={count} hero />
             <Figure
               label="Projected admissions"
               value={totals.projected_admissions}
               format={count}
               hero
-              updatedAt={updatedAt}
             />
           </div>
 

@@ -107,8 +107,30 @@ export function formatDateLong(date: ISODate): string {
 }
 
 /**
+ * The IST calendar date a timestamptz fell on.
+ *
+ * A timestamp is an instant; a date is where that instant landed for somebody.
+ * `.slice(0, 10)` on the raw string answers that question for Greenwich, which
+ * silently backdates anything stamped before 05:30 IST — an upload at 10am on
+ * the 3rd becomes the 2nd. `en-CA` is the shortest honest route to yyyy-mm-dd
+ * in a named zone.
+ */
+export function dateOf(ts: string): ISODate {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ts));
+}
+
+/**
  * The freshness stamp. Takes a real timestamptz — not a calendar date — so
  * ordinary Date maths is correct here.
+ *
+ * Admin-side only now. It used to sit under every figure on the client's
+ * Overview as well, until "Updated 15 minutes ago by Adovia" turned out to
+ * advertise our working rhythm rather than say anything a client wanted.
  *
  * Deliberately vague past a day: "updated 3 days ago" is the honest reading of a
  * row nobody has touched, and rounding it to "last week" would soften exactly
@@ -128,14 +150,7 @@ export function relativeTime(ts: string): string {
   const days = Math.round(hrs / 24);
   if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
 
-  return `on ${formatDate(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: IST,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(ts)),
-  )}`;
+  return `on ${formatDate(dateOf(ts))}`;
 }
 
 /** Absolute IST timestamp for the `title` attribute under a relative stamp. */

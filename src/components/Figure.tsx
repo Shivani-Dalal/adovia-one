@@ -1,5 +1,3 @@
-import { relativeTime, formatTimestamp } from '../lib/dates';
-
 /**
  * The component the whole product's claim rests on.
  *
@@ -11,21 +9,25 @@ import { relativeTime, formatTimestamp } from '../lib/dates';
  * The formatter is passed in and returns `string | null`, which is what makes
  * this hard to get wrong: there is no path where a caller formats a null into
  * "₹0" before it reaches here.
+ *
+ * No freshness stamp. This used to carry "Updated 15 minutes ago by Adovia"
+ * under every figure, which answered a question clients were not asking and
+ * raised one they were not meant to: how long ago Adovia last touched their
+ * account. The date the figures are *for* is stated once at the foot of the
+ * page, which is the thing that actually needs to be unambiguous. When the row
+ * was typed is our business, and it is still on the admin side where it
+ * belongs.
  */
 export function Figure({
   label,
   value,
   format,
   hero = false,
-  updatedAt,
-  by = 'Adovia',
 }: {
   label: string;
   value: number | null;
   format: (n: number | null) => string | null;
   hero?: boolean;
-  updatedAt?: string | null;
-  by?: string;
 }) {
   const text = format(value);
   const stated = text !== null;
@@ -39,12 +41,6 @@ export function Figure({
       ) : (
         <div className="fig empty" title="Adovia has not entered this figure yet">
           Not yet entered
-        </div>
-      )}
-
-      {stated && updatedAt && (
-        <div className="stamp" title={formatTimestamp(updatedAt)}>
-          Updated {relativeTime(updatedAt)} by {by}
         </div>
       )}
     </div>

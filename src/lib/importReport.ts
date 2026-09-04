@@ -53,11 +53,33 @@ export const IMPORT_FIELDS = [
 
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 
+/**
+ * Where each row's campaign comes from.
+ *
+ * `column` is the general case: a file covering several campaigns names one per
+ * row. `fixed` is the common one — ops exports a month for a single campaign,
+ * and the file has no campaign column because every row is the same campaign
+ * and writing it thirty times would be noise. Before this existed the only way
+ * to import such a file was to add a column to it by hand, which is an editing
+ * step performed on the source document immediately before importing it: the
+ * exact thing this screen exists to remove.
+ *
+ * `fixed` carries the id, not the name. The name is looked up from the client's
+ * campaigns when the plan is built, so what the preview prints is the campaign
+ * as stored rather than a copy taken when the dropdown was clicked — and a
+ * chosen campaign that no longer exists is caught rather than silently
+ * re-created from its own stale label.
+ */
+export type CampaignSource =
+  | { kind: 'column'; at: number }
+  | { kind: 'fixed'; id: string }
+  | { kind: 'none' };
+
 /** Which column of the sheet holds what. `null` means "not in this file". */
 export interface Mapping {
   date: number | null;
-  /** Null when the sheet has no campaign column — every row is unattributed. */
-  campaign: number | null;
+  /** Where the campaign comes from — a column, one fixed choice, or nothing. */
+  campaign: CampaignSource;
   fields: Partial<Record<ImportField, number>>;
 }
 
@@ -165,13 +187,21 @@ export function guessMapping(header: readonly string[]): Mapping {
   };
 
   const date = findOne('date');
-  const campaign = findOne('campaign');
+  const campaignAt = findOne('campaign');
   const fields: Partial<Record<ImportField, number>> = {};
   for (const f of IMPORT_FIELDS) {
     const at = findOne(f);
     if (at !== null) fields[f] = at;
   }
-  return { date, campaign, fields };
+  // A campaign column is used when the file has one. A file without one is NOT
+  // guessed into a fixed campaign, even when the client has exactly one: that
+  // would be the importer deciding, from no evidence in the file, which
+  // campaign a month of client-facing figures belongs to. Ops picks it.
+  return {
+    date,
+    campaign: campaignAt === null ? { kind: 'none' } : { kind: 'column', at: campaignAt },
+    fields,
+  };
 }
 
 /**
@@ -387,6 +417,17 @@ export function buildPlan(input: PlanInput): Plan {
   const stored = new Map<string, DailyReport>();
   for (const r of existing) stored.set(keyOf(r.date, r.campaign_id), r);
 
+  /*
+    The one campaign every row belongs to, when ops chose one for the whole
+    file. Resolved once, here, against the client's stored campaigns — so if the
+    choice no longer matches a campaign this client has, every row blocks with a
+    reason instead of the file importing onto the unattributed line and looking
+    like it worked.
+  */
+  const source = mapping.campaign;
+  const fixed =
+    source.kind === 'fixed' ? (campaigns.find((c) => c.id === source.id) ?? null) : null;
+
   const rows: PlannedRow[] = [];
   const unknown = new Map<string, string>();
   // (date, campaign) pairs already claimed by an earlier row of this same file.
@@ -399,7 +440,18 @@ export function buildPlan(input: PlanInput): Plan {
       at === null || at === undefined ? '' : (row[at] ?? '').trim();
 
     const rawDate = cell(mapping.date);
-    const campaignName = cell(mapping.campaign);
+
+    /*
+      What this ROW says about its campaign, which only a column can say.
+
+      Kept apart from the display name below because it is what decides whether
+      a line is a spacer. A fixed campaign applies to the whole file, so folding
+      it in here would give every blank line in the sheet a campaign, stop it
+      being recognised as blank, and report a trailing run of empty rows as
+      "no date on this row" — turning a clean file into a screenful of errors.
+    */
+    const campaignCell = source.kind === 'column' ? cell(source.at) : '';
+    const campaignName = fixed ? fixed.name : campaignCell;
 
     // Only the cells that actually say something. A blank is silence, and
     // silence must not travel any further than this loop — see the module note.
@@ -409,7 +461,7 @@ export function buildPlan(input: PlanInput): Plan {
       if (v !== '') statedRaw[f] = v;
     }
 
-    const blank = rawDate === '' && campaignName === '' && Object.keys(statedRaw).length === 0;
+    const blank = rawDate === '' && campaignCell === '' && Object.keys(statedRaw).length === 0;
     if (blank) continue; // A spacer row in the sheet. Not worth reporting.
 
     const head = { line, rawDate, campaignName };
@@ -455,16 +507,32 @@ export function buildPlan(input: PlanInput): Plan {
     /** This row's identity within the file, for spotting the same slot twice. */
     let slot: string | null = null;
 
-    if (campaignName !== '') {
-      const key = campaignName.toLowerCase();
-      const match = nameClash(campaigns, campaignName);
+    if (source.kind === 'fixed') {
+      // No name matching to do — ops picked the campaign itself, by id. The
+      // duplicate check below then reads as "this date appears twice in a file
+      // that is all one campaign", which is exactly what it should catch.
+      if (!fixed) {
+        rows.push(
+          block(
+            'The campaign chosen for this file is not one of this client’s campaigns. ' +
+              'Pick the campaign again.',
+            date,
+          ),
+        );
+        continue;
+      }
+      campaignId = fixed.id;
+      slot = fixed.id;
+    } else if (campaignCell !== '') {
+      const key = campaignCell.toLowerCase();
+      const match = nameClash(campaigns, campaignCell);
       if (match) {
         campaignId = match.id;
         slot = match.id;
       } else {
-        unknown.set(key, campaignName);
+        unknown.set(key, campaignCell);
         if (!willCreate?.has(key)) {
-          rows.push(block(`This client has no campaign called “${campaignName}”.`, date));
+          rows.push(block(`This client has no campaign called “${campaignCell}”.`, date));
           continue;
         }
         // Agreed to be created. It has no id until the write happens, which is

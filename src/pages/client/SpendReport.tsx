@@ -127,26 +127,51 @@ export default function SpendReport() {
   /** The whole month, every campaign — what the filter and the breakdown read. */
   const monthAll = useMemo(() => (month ? monthRows(rows, month) : []), [rows, month]);
 
-  // Accruing fields only. Each slice here spans the whole month, so folding the
-  // projection columns into it would add one standing forecast to itself once
-  // per day — a campaign entered on five days would report five times its own
-  // target, as a number indistinguishable from a real one. The projections stay
-  // where they mean something: per day, in the sheet above.
-  //
-  // This is also the filter's option list, from the same call, so the dropdown
-  // can only ever offer campaigns the month actually has rows for.
-  const breakdown = useMemo(
-    () => (isSplit(monthAll) ? sliceByCampaign(monthAll, SPEND_ACCRUING_FIELDS, campaigns) : []),
+  /**
+   * Every campaign the month has rows for — the filter's option list.
+   *
+   * Not gated on the month being split, and that is the point. A month with one
+   * campaign in it used to produce an empty list and no dropdown at all, which
+   * left a client reading July's sheet with nothing on the page naming the one
+   * campaign every figure came from. The control was suppressed as "a dropdown
+   * whose choices produce the identical sheet" — true of the numbers, and beside
+   * the point: what it offers is the campaign's NAME, and picking it puts that
+   * name on the card heading, the total row and the export filename.
+   *
+   * Accruing fields only, because each slice here spans the whole month. See
+   * `SPEND_ACCRUING_FIELDS` for what that list is and is not.
+   */
+  const campaignOptions = useMemo(
+    () => sliceByCampaign(monthAll, SPEND_ACCRUING_FIELDS, campaigns),
     [monthAll, campaigns],
+  );
+
+  /**
+   * The same slices, but only when there is a genuine split to show.
+   *
+   * Derived from `campaignOptions` rather than sliced again, so the card and
+   * the dropdown cannot come to disagree about what a month contains. The gate
+   * stays on the CARD: a one-line "By campaign" table restating the total
+   * directly above it is a breakdown of nothing, which is a different complaint
+   * from the one that put the dropdown back.
+   */
+  const breakdown = useMemo(
+    () => (isSplit(monthAll) ? campaignOptions : []),
+    [monthAll, campaignOptions],
   );
 
   /**
    * The month's rows, narrowed to the chosen campaign — and the choice itself,
    * corrected to something this month can actually show. See `pickCampaign`.
+   *
+   * Corrected against `campaignOptions`, not `breakdown`. Passing the gated list
+   * would make a single-campaign month reject its own only campaign and silently
+   * fall back to "All campaigns" — the dropdown would show a name and the sheet
+   * would ignore it.
    */
   const pick = useMemo(
-    () => pickCampaign(monthAll, breakdown, campaign),
-    [monthAll, breakdown, campaign],
+    () => pickCampaign(monthAll, campaignOptions, campaign),
+    [monthAll, campaignOptions, campaign],
   );
   const { key: picked, slice: pickedSlice, rows: raw } = pick;
   // `SPEND_FIELDS`, not the accruing subset, and safely so: `foldToDays` groups
@@ -201,12 +226,12 @@ export default function SpendReport() {
                 </select>
               </div>
               {/*
-                Only offered when the month has more than one campaign in it. A
-                single-campaign month would get a two-option dropdown whose
-                choices produce the identical sheet, which reads as a control
-                that does nothing.
+                Offered whenever the month has a campaign in it at all, one
+                included — see `campaignOptions`. "All campaigns" stays on the
+                list even then: it is the default selection, and dropping it
+                would leave `picked` pointing at an option that isn't there.
               */}
-              {breakdown.length > 0 && (
+              {campaignOptions.length > 0 && (
                 <div className="field inline">
                   <label htmlFor="spend-campaign">Campaign</label>
                   <select
@@ -215,7 +240,7 @@ export default function SpendReport() {
                     onChange={(e) => setCampaign(e.target.value)}
                   >
                     <option value={CAMPAIGN_ALL}>All campaigns</option>
-                    {breakdown.map((c) => (
+                    {campaignOptions.map((c) => (
                       <option key={campaignKey(c.id)} value={campaignKey(c.id)}>
                         {c.name} ({c.rows})
                       </option>
@@ -297,8 +322,13 @@ export default function SpendReport() {
                   <th>{label} total</th>
                   <th className="num">{moneyExact(totals.spend) ?? <Blank />}</th>
                   <th className="num">{count(totals.impressions) ?? <Blank />}</th>
-                  <th className="num" />
-                  <th className="num" />
+                  <th className="num">{count(totals.leads) ?? <Blank />}</th>
+                  {/* Totalled like the rest, but `spendTotals` answers null for
+                      a month no row states — which today is every month — so
+                      this renders the same dash the column above it already
+                      shows, and prints a figure by itself once ops enters one.
+                      A 0 here would be a forecast nobody made. */}
+                  <th className="num">{count(totals.admissions) ?? <Blank />}</th>
                 </tr>
               </tfoot>
             </table>
@@ -347,6 +377,13 @@ export default function SpendReport() {
                   <th>Campaign</th>
                   <th className="num">Spend (₹)</th>
                   <th className="num">Cumulative impressions</th>
+                  {/*
+                    "Projected leads", never "Leads". Per campaign, beside that
+                    campaign's spend, an unqualified column reads as leads the
+                    campaign delivered — a measurement, and not one Adovia
+                    publishes. The word is what keeps the column a forecast.
+                  */}
+                  <th className="num">Projected leads</th>
                   <th className="num">Days</th>
                 </tr>
               </thead>
@@ -356,6 +393,7 @@ export default function SpendReport() {
                     <td>{c.name}</td>
                     <td className="num">{moneyExact(c.totals.ad_spend) ?? <Blank />}</td>
                     <td className="num">{count(c.totals.impressions) ?? <Blank />}</td>
+                    <td className="num">{count(c.totals.projected_leads) ?? <Blank />}</td>
                     <td className="num">{c.rows}</td>
                   </tr>
                 ))}
@@ -365,17 +403,18 @@ export default function SpendReport() {
                   <th>{month && monthLabel(month)} total</th>
                   <th className="num">{moneyExact(totals.spend) ?? <Blank />}</th>
                   <th className="num">{count(totals.impressions) ?? <Blank />}</th>
+                  <th className="num">{count(totals.leads) ?? <Blank />}</th>
                   <th className="num">{spendDays}</th>
                 </tr>
               </tfoot>
             </table>
           </div>
           <p className="muted mt sm">
-            Spend and impressions add up to the month total above. Projected leads and
-            admissions are left out of this card on purpose: they are a standing forecast
-            restated each day rather than a running count, so a month of one campaign&rsquo;s
-            projections is the same target counted many times over. They are shown per day
-            in the sheet above, which is where they mean something. Days counts the days
+            All three figures add up to the month totals above. Projected leads is a
+            forecast, not a count of leads the campaign delivered — Adovia does not report
+            delivered leads on this page, and the figure moves with each day&rsquo;s spend
+            rather than being a target set once. Projected admissions is not split by
+            campaign, because no day states that figure yet. Days counts the days
             each campaign was recorded on, so it reads down the column to more than the
             month&rsquo;s day count whenever two campaigns ran on the same day. Pick a
             campaign from the filter at the top to see its own day-by-day sheet, or

@@ -32,7 +32,7 @@ export default function Invoices() {
         .from('invoices')
         .select('*')
         .eq('client_id', clientId)
-        .order('period_start', { ascending: false })
+        .order('issue_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (!alive) return;
@@ -51,20 +51,23 @@ export default function Invoices() {
    * months. A dropdown offering "July 2026" that yields an empty table reads as
    * a missing invoice, and that is a support email.
    *
-   * Grouped by period_start, not created_at: "my August invoice" means the one
-   * covering August, whatever day it was uploaded.
+   * Grouped by issue_date, not created_at: "my August invoice" means the one
+   * dated August, whatever day it was uploaded. Note that is the month the
+   * invoice was RAISED — an invoice dated 2 July usually bills June's work — so
+   * this groups by the date on the document, which is the one the client can
+   * see for themselves.
    */
   const months = useMemo(() => {
     const seen = new Map<string, number>();
     for (const r of rows) {
-      const k = monthKey(r.period_start);
+      const k = monthKey(r.issue_date);
       seen.set(k, (seen.get(k) ?? 0) + 1);
     }
     return [...seen.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [rows]);
 
   const shown = useMemo(
-    () => (month === ALL ? rows : rows.filter((r) => monthKey(r.period_start) === month)),
+    () => (month === ALL ? rows : rows.filter((r) => monthKey(r.issue_date) === month)),
     [rows, month],
   );
 
@@ -163,7 +166,7 @@ export default function Invoices() {
           {month === ALL
             ? ' all periods'
             : ` for ${monthLabel(month)}`}
-          . Oldest is {formatDate(rows[rows.length - 1].period_start)}. Download links are
+          . Oldest is {formatDate(rows[rows.length - 1].issue_date)}. Download links are
           generated fresh each time and expire after a minute.
         </p>
       )}

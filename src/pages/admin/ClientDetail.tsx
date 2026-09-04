@@ -163,7 +163,7 @@ export default function ClientDetail() {
         .from('invoices')
         .select('*')
         .eq('client_id', id)
-        .order('period_start', { ascending: false }),
+        .order('issue_date', { ascending: false }),
       supabase
         .from('creatives')
         .select('*')
@@ -197,9 +197,10 @@ export default function ClientDetail() {
 
     const days = asRows<DailyReport>(mRes.data);
     const measured = asRows<DailyActuals>(aRes.data);
+    const bills = asRows<Invoice>(iRes.data);
     setClient((cRes.data as Client) ?? null);
     setReports(days);
-    setInvoices(asRows<Invoice>(iRes.data));
+    setInvoices(bills);
     setCreatives(asRows<Creative>(krRes.data));
     setActuals(measured);
     // Names only, and a failure costs names rather than figures — see the
@@ -211,7 +212,20 @@ export default function ClientDetail() {
     // reads as a fault rather than as an honest "nothing recorded". Kept as `m ??`
     // so a reload after saving a note doesn't yank ops back to the newest month.
     setActualsMonth((m) => m ?? (measured.length > 0 ? monthKey(measured[0].date) : null));
-    setReportMonth((m) => m ?? (days.length > 0 ? monthKey(days[0].date) : null));
+    // The report picker now scopes the invoice list too, so "newest month with
+    // data" has to mean either kind. Without the invoice side, a client with
+    // invoices but nothing entered yet would open on no month at all and the
+    // one card it could have filled would be the one showing nothing. Both
+    // queries come back newest-first, so this is the later of the two heads.
+    setReportMonth(
+      (m) =>
+        m ??
+        [
+          ...(days.length > 0 ? [monthKey(days[0].date)] : []),
+          ...(bills.length > 0 ? [monthKey(bills[0].issue_date)] : []),
+        ].sort((a, b) => b.localeCompare(a))[0] ??
+        null,
+    );
 
     setLoading(false);
   }, [id]);
@@ -326,6 +340,8 @@ export default function ClientDetail() {
           month={reportMonth}
           onMonth={setReportMonth}
           invoices={invoices}
+          onInvoiceDeleted={(i) => setInvoices((xs) => xs.filter((r) => r.id !== i.id))}
+          onInvoiceUpdated={(i) => setInvoices((xs) => xs.map((r) => (r.id === i.id ? i : r)))}
           creatives={creatives}
           onCreativeDeleted={(c) => setCreatives((cs) => cs.filter((r) => r.id !== c.id))}
         />
@@ -366,6 +382,8 @@ function ClientAccount({
   month,
   onMonth,
   invoices,
+  onInvoiceDeleted,
+  onInvoiceUpdated,
   creatives,
   onCreativeDeleted,
 }: {
@@ -375,20 +393,64 @@ function ClientAccount({
   month: string | null;
   onMonth: (m: string) => void;
   invoices: Invoice[];
+  onInvoiceDeleted: (i: Invoice) => void;
+  onInvoiceUpdated: (i: Invoice) => void;
   creatives: Creative[];
   onCreativeDeleted: (c: Creative) => void;
 }) {
   /** A campaign id, or one of the two sentinels. Corrected by `pickCampaign`. */
   const [campaign, setCampaign] = useState<string>(CAMPAIGN_ALL);
 
-  const months = useMemo(() => monthsWithCounts(reports), [reports]);
+  /**
+   * Every month this client has anything on this screen — a published day OR an
+   * invoice — newest first, with the DAY count the label prints.
+   *
+   * The union is what makes the one picker safe to point at the invoice list
+   * below. Built from report days alone this was fine, because it governed only
+   * the day table; now that the same choice scopes the invoices, a month
+   * holding an invoice and no published days would have no option to select and
+   * its invoice would be unreachable from this page — not hidden, gone.
+   *
+   * That is the normal case rather than a corner one. An invoice is usually
+   * raised the month AFTER the work it bills (see `Invoice.issue_date`), so in
+   * the first days of a month the newest invoice routinely sits in a month with
+   * nothing entered against it yet. Such a month shows "(0)" and an empty day
+   * table, which is the honest reading: no days recorded, one invoice raised.
+   */
+  const months = useMemo(() => {
+    const byDays = new Map(monthsWithCounts(reports));
+    for (const i of invoices) {
+      const k = monthKey(i.issue_date);
+      if (!byDays.has(k)) byDays.set(k, 0);
+    }
+    return [...byDays.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [reports, invoices]);
+
+  /**
+   * The selected month's invoices, grouped by `issue_date`.
+   *
+   * This card used to print every invoice the client has ever had while the
+   * month picker above it said "August", so the heading and the table were
+   * answering different questions and the count in the title kept growing no
+   * matter what was selected. Grouped by issue_date rather than created_at for
+   * the same reason the client's own list is: "the August invoice" means the
+   * one dated August, whatever day it was uploaded.
+   */
+  const monthInvoices = useMemo(
+    () => (month ? invoices.filter((i) => monthKey(i.issue_date) === month) : invoices),
+    [invoices, month],
+  );
+
   /** The whole month, every campaign — what the filter and the breakdown read. */
   const monthAll = useMemo(() => (month ? monthRows(reports, month) : []), [reports, month]);
 
-  // Accruing fields only: each slice spans the month, so folding the projection
-  // columns in would add one standing forecast to itself once per day. This is
-  // also the filter's option list, from the same call, so the dropdown can only
-  // offer campaigns the month has rows for.
+  // Spend and impressions only — a presentation choice, not an arithmetic one.
+  // A projection column sitting beside spend, per campaign, reads as leads
+  // delivered by that campaign, which is a measurement this product does not
+  // publish. The month's projection is totalled once, in the card above, where
+  // the per-day column it sums is in view. This is also the filter's option
+  // list, from the same call, so the dropdown can only offer campaigns the
+  // month has rows for.
   const breakdown = useMemo(
     () => (isSplit(monthAll) ? sliceByCampaign(monthAll, SPEND_ACCRUING_FIELDS, campaigns) : []),
     [monthAll, campaigns],
@@ -559,8 +621,9 @@ function ClientAccount({
               ) : (
                 <>
                   {' '}
-                  — exactly what {client.name} sees on their Overview, including the
-                  &ldquo;updated&rdquo; stamp under each figure.
+                  — the same figures {client.name} sees on their Overview. The Updated
+                  column is ours alone; their side shows the numbers without saying when
+                  we last touched them.
                 </>
               )}{' '}
               A dash means Adovia has not stated that figure yet, which is what they see
@@ -638,6 +701,18 @@ function ClientAccount({
             <div className="figures small">
               <Stat label="Ad spend" value={moneyExact(totals.spend)} />
               <Stat label="Cumulative impressions" value={count(totals.impressions)} />
+              <Stat label="Projected leads" value={count(totals.leads)} />
+              {/*
+                Only when a row actually states it. Every other figure here is
+                worth a "Not yet entered" placeholder because ops is expected to
+                fill it; admissions is null in every row ever stored, so a
+                permanent placeholder would be a standing prompt to enter
+                something nobody has decided to collect. It appears the day one
+                is entered.
+              */}
+              {totals.admissions !== null && (
+                <Stat label="Projected admissions" value={count(totals.admissions)} />
+              )}
               <Stat label="Days recorded" value={`${spendDays} of ${lines.length}`} />
             </div>
             <p className="asof">
@@ -652,16 +727,42 @@ function ClientAccount({
                   month split by campaign, spend and impressions only.{' '}
                 </>
               )}
-              Projected leads and admissions appear per day but are not totalled: ops
-              restates them daily rather than accruing them, so a month&rsquo;s sum would
-              report the target many times over.
+              Projected leads are totalled here because the stored figure moves with each
+              day&rsquo;s spend rather than restating one standing target — the same total,
+              from the same function, that {client.name} now reads in their own footer.
+              Projected admissions total the same way and show above only once a day states
+              one; no row ever has, so today that figure is absent rather than zero.
             </p>
           </>
         )}
       </Card>
 
-      <Card title={`Invoices (${invoices.length})`}>
-        {invoices.length === 0 ? <Empty title="No invoices yet" /> : <InvoiceTable rows={invoices} />}
+      {/*
+        Scoped to the month picked at the top of the page, like everything else
+        on this screen. One picker governs the day table, both exports and this
+        list, so an account manager reading "August" down the page is reading
+        one month throughout rather than a month of figures beside every invoice
+        the client has ever been sent.
+      */}
+      <Card title={`Invoices — ${monthName} (${monthInvoices.length})`}>
+        {invoices.length === 0 ? (
+          <Empty title="No invoices yet" />
+        ) : monthInvoices.length === 0 ? (
+          // Distinct from "none at all", because the two call for different
+          // next actions: raise one, versus change the month to find it.
+          <Empty
+            title={`No invoices dated ${monthName}`}
+            body="Invoices are grouped by the date printed on them, which is often the month after the work they bill. Every month holding one is offered in the Month picker above."
+          />
+        ) : (
+          // `onDeleted` is what puts the delete column on screen, and passing it
+          // only here is why the client's own invoice list does not get one.
+          <InvoiceTable
+            rows={monthInvoices}
+            onDeleted={onInvoiceDeleted}
+            onUpdated={onInvoiceUpdated}
+          />
+        )}
       </Card>
 
       {/* Creatives come the other way — the client sends these to us. */}

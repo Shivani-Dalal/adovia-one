@@ -104,9 +104,21 @@ export function Shell({
           screen reader as the text it replaces.
         */}
         <Brand />
+        {/*
+          A way to reach a person, rather than a claim about the data.
+
+          This used to say the figures were "stamped with when it was last
+          updated", which stopped being true the moment those stamps came off
+          the client's screens — and was never the most useful thing to put at
+          the bottom of every page anyway. Someone reading the footer is usually
+          looking for what to do about what they just read.
+
+          The POC comes first because it is the answer that gets a reply fastest;
+          the inbox is the fallback for a client who has lost the thread.
+        */}
         <span>
-          Every figure here is entered by the Adovia team and stamped with when it was
-          last updated.
+          Questions about anything here? Speak to your Adovia point of contact, or write
+          to <a href="mailto:ops@adovia.in">ops@adovia.in</a>.
         </span>
       </footer>
     </div>

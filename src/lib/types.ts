@@ -276,8 +276,13 @@ export interface Invoice {
   client_id: string;
   created_at: string;
   number: string;
-  period_start: string;
-  period_end: string;
+  /**
+   * The date printed on the invoice, and what the client's month dropdown
+   * groups by. Note this is the date the invoice was RAISED, which is often the
+   * month after the work it bills — so "my July invoice" is the one dated July,
+   * not the one covering July.
+   */
+  issue_date: string;
   amount: number | null;
   currency: string;
   status: InvoiceStatus;

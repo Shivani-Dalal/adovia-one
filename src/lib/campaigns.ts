@@ -79,20 +79,22 @@ export type Totals<F extends string> = { [K in F]: number | null };
  * impressions yields a spend total and a null impressions total, which is an
  * honest description of what was entered.
  *
- * A note on projections, because this is the one place the rule inverts.
- * `projected_leads` and `projected_admissions` MUST be summed across campaigns
- * within a day — each campaign carries its own forecast, and the client's
- * forecast for the day is their sum. They must NOT be summed across days: ops
- * prefills each day's projection from the day before, so a month of them is one
- * standing forecast restated thirty times, and adding it up would report thirty
- * times the target.
+ * A note on projections. `projected_leads` and `projected_admissions` are summed
+ * across campaigns within a day — each campaign carries its own forecast, and
+ * the client's forecast for the day is their sum. They are also summed across
+ * days for the month total: `projected_leads` tracks each day's spend rather
+ * than standing still, so a month of them is the month's projection. See
+ * `SpendTotals` in `spendReport.ts`, which carries the evidence and the one
+ * caveat — `DailyEntry`'s carry-forward can commit an inherited projection if
+ * ops edits another cell on the same row.
  *
- * This function cannot tell the two apart — it sums whatever fields and whatever
- * rows it is handed. Which direction you get is decided entirely by the CALLER,
- * by what it puts in `rows`. Pass one date's rows and every field is safe. Pass a
- * span of dates and only the accruing fields are: see `SPEND_ACCRUING_FIELDS` in
- * `spendReport.ts`, which is the list to use in that case, and `spendTotals`,
- * which applies the same rule to the month total.
+ * This function cannot tell any of that apart — it sums whatever fields and
+ * whatever rows it is handed, and which direction you get is decided entirely by
+ * the CALLER, by what it puts in `rows`. The distinction still matters for what
+ * a fold MEANS rather than whether it is arithmetically safe: a per-campaign
+ * slice spanning a month is a different claim from a day's total, which is why
+ * the breakdown card passes `SPEND_ACCRUING_FIELDS` and the day sheet passes
+ * `SPEND_FIELDS`.
  */
 export function sumFields<F extends string>(
   rows: readonly FigureRow<F>[],
@@ -176,11 +178,12 @@ export interface CampaignSlice<F extends string> {
  * blanks can.
  *
  * MIND THE FIELDS. This groups by campaign, not by date, so each slice normally
- * spans every day in `rows` — which makes it the one fold here that is usually
- * in the unsafe direction. Pass `SPEND_ACCRUING_FIELDS` when `rows` covers more
- * than one date; `SPEND_FIELDS` is only correct when they are all the same day,
- * as on Overview. Getting this wrong is silent: the projection cells fill with
- * plausible numbers that are a month of one forecast added to itself.
+ * spans every day in `rows`. Pass `SPEND_ACCRUING_FIELDS` when `rows` covers
+ * more than one date; `SPEND_FIELDS` is what a same-day fold wants, as on
+ * Overview. The difference is no longer about arithmetic — it is about what the
+ * slice claims. A projection totalled per campaign over a month sits beside
+ * that campaign's spend and reads as leads it delivered, which is a measurement
+ * this product does not publish.
  */
 export function sliceByCampaign<F extends string>(
   rows: readonly FigureRow<F>[],

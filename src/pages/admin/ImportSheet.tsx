@@ -13,6 +13,7 @@ import {
   guessMapping,
   inferDateStyle,
   payloadFor,
+  type CampaignSource,
   type DateStyle,
   type ImportField,
   type Mapping,
@@ -99,7 +100,11 @@ export function ImportSheet({
   const [reading, setReading] = useState(false);
 
   const [headerRow, setHeaderRow] = useState(0);
-  const [mapping, setMapping] = useState<Mapping>({ date: null, campaign: null, fields: {} });
+  const [mapping, setMapping] = useState<Mapping>({
+    date: null,
+    campaign: { kind: 'none' },
+    fields: {},
+  });
   const [dateStyle, setDateStyle] = useState<DateStyle>('dmy');
   /** True once ops has chosen a convention, or the file proved one itself. */
   const [styleSettled, setStyleSettled] = useState(true);
@@ -200,6 +205,37 @@ export function ImportSheet({
 
   const rangeKey = range ? `${range.from}:${range.to}` : '';
 
+  /*
+    This client's campaigns, on the client alone.
+
+    Separate from the rows fetch below, which waits for a file to have a date
+    range. These are needed before any file is chosen, because "every row is
+    this campaign" is one of the answers to the campaign question and the list
+    has to be on screen to be picked from. Fetching them alongside the rows
+    would mean the choice only appeared after a file with a readable date
+    column had been loaded — which is the wrong way round, since choosing the
+    campaign is how you make a file without a campaign column readable.
+  */
+  useEffect(() => {
+    if (clientId === '') return;
+    let live = true;
+
+    void (async () => {
+      const { data, error: err } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('name');
+      if (!live) return;
+      if (err) setError(errorText(err));
+      else setCampaigns(asRows<Campaign>(data));
+    })();
+
+    return () => {
+      live = false;
+    };
+  }, [clientId]);
+
   useEffect(() => {
     if (clientId === '' || rangeKey === '') return;
     const [from, to] = rangeKey.split(':');
@@ -207,21 +243,15 @@ export function ImportSheet({
 
     void (async () => {
       setLoadingRows(true);
-      const [campRes, rowsRes] = await Promise.all([
-        supabase.from('campaigns').select('*').eq('client_id', clientId).order('name'),
-        supabase
-          .from('daily_report')
-          .select(REPORT_COLS)
-          .eq('client_id', clientId)
-          .gte('date', from)
-          .lte('date', to),
-      ]);
+      const { data, error: err } = await supabase
+        .from('daily_report')
+        .select(REPORT_COLS)
+        .eq('client_id', clientId)
+        .gte('date', from)
+        .lte('date', to);
       if (!live) return;
-      if (campRes.error || rowsRes.error) setError(errorText(campRes.error ?? rowsRes.error));
-      else {
-        setCampaigns(asRows<Campaign>(campRes.data));
-        setExisting(asRows<DailyReport>(rowsRes.data));
-      }
+      if (err) setError(errorText(err));
+      else setExisting(asRows<DailyReport>(data));
       setLoadingRows(false);
     })();
 
@@ -346,6 +376,16 @@ export function ImportSheet({
             // Campaign names are per client, so an opt-in to create "PR" for
             // one client must not follow the file to the next.
             setCreateNames(new Set());
+            // Nor may a fixed campaign: it is one client's campaign by id, and
+            // carried across it would name a campaign the new client does not
+            // have. Cleared rather than remapped, because there is no such
+            // thing as the same campaign on a different client.
+            setMapping((m) =>
+              m.campaign.kind === 'fixed' ? { ...m, campaign: { kind: 'none' } } : m,
+            );
+            // Dropped so the picker cannot offer the previous client's
+            // campaigns in the gap before the new ones arrive.
+            setCampaigns([]);
           }}
         >
           {clients.map((c) => (
@@ -390,6 +430,7 @@ export function ImportSheet({
           <ColumnMap
             header={header}
             mapping={mapping}
+            campaigns={campaigns}
             busy={busy}
             onChange={setMapping}
           />
@@ -573,11 +614,14 @@ function HeaderPick({
 function ColumnMap({
   header,
   mapping,
+  campaigns,
   busy,
   onChange,
 }: {
   header: readonly string[];
   mapping: Mapping;
+  /** This client's campaigns, so the whole file can be assigned to one. */
+  campaigns: readonly Campaign[];
   busy: boolean;
   onChange: (m: Mapping) => void;
 }) {
@@ -585,6 +629,12 @@ function ColumnMap({
     const h = header[i]?.trim();
     return h && h !== '' ? `${colName(i)} · ${h}` : `${colName(i)} · (no heading)`;
   };
+
+  // Bound once so the union stays narrowed: a call in the middle of the check
+  // below (`guessMapping`) resets narrowing on a property access, but not on a
+  // const.
+  const source = mapping.campaign;
+  const fileNamesCampaigns = guessMapping(header).campaign.kind === 'column';
 
   const options = header.map((_, i) => (
     <option key={i} value={i}>
@@ -611,18 +661,37 @@ function ColumnMap({
           </select>
         </div>
 
+        {/*
+          Three answers, not two, because a file legitimately arrives in three
+          shapes: one that names a campaign per row, one that IS a campaign and
+          says so only in its filename, and one for a client who is not split at
+          all. Only the first and last were expressible before, so the middle
+          case — much the most common, since ops exports a month per campaign —
+          had to be forced into the first by adding a column to the file by
+          hand. That is an edit to the source document, made in a hurry,
+          immediately before a bulk write of client-facing figures.
+        */}
         <div className="field">
           <label htmlFor="map-campaign">Campaign</label>
           <select
             id="map-campaign"
-            value={mapping.campaign ?? ''}
-            disabled={busy}
-            onChange={(e) =>
-              onChange({
-                ...mapping,
-                campaign: e.target.value === '' ? null : Number(e.target.value),
-              })
+            value={
+              source.kind === 'column'
+                ? `col:${source.at}`
+                : source.kind === 'fixed'
+                  ? `id:${source.id}`
+                  : ''
             }
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value;
+              const campaign: CampaignSource = v.startsWith('col:')
+                ? { kind: 'column', at: Number(v.slice(4)) }
+                : v.startsWith('id:')
+                  ? { kind: 'fixed', id: v.slice(3) }
+                  : { kind: 'none' };
+              onChange({ ...mapping, campaign });
+            }}
           >
             {/*
               Not an error. A file with no campaign column is a client who is
@@ -630,7 +699,22 @@ function ColumnMap({
               line the grid shows them.
             */}
             <option value="">Not in this file — one line for the client</option>
-            {options}
+            {campaigns.length > 0 && (
+              <optgroup label="Every row in this file is one campaign">
+                {campaigns.map((c) => (
+                  <option key={c.id} value={`id:${c.id}`}>
+                    All rows → {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="A column in the file names the campaign">
+              {header.map((_, i) => (
+                <option key={i} value={`col:${i}`}>
+                  {label(i)}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
@@ -654,6 +738,25 @@ function ColumnMap({
           </div>
         ))}
       </div>
+      {/*
+        The one way this control can quietly do the wrong thing: the file names
+        campaigns per row AND ops has assigned the whole file to one. Every row
+        then lands on the chosen campaign and the file's own column is ignored,
+        which looks like a clean import of a month onto a single campaign. Said
+        out loud, because nothing downstream of here can tell it from correct.
+      */}
+      {source.kind === 'fixed' && fileNamesCampaigns && (
+        <p className="hint mt">
+          <strong className="warn">This file looks like it names campaigns itself.</strong>{' '}
+          Every row will be imported as{' '}
+          <strong>
+            {campaigns.find((c) => c.id === source.id)?.name ?? 'the chosen campaign'}
+          </strong>{' '}
+          and that column ignored. If the file covers more than one campaign, pick the column
+          instead — check the Campaign column in the preview below before importing.
+        </p>
+      )}
+
       <p className="hint sm">
         A column left as &ldquo;not in this file&rdquo; is not imported and never
         overwrites what is already recorded. Neither does a blank cell — an import can
