@@ -444,16 +444,47 @@ function ClientAccount({
   /** The whole month, every campaign — what the filter and the breakdown read. */
   const monthAll = useMemo(() => (month ? monthRows(reports, month) : []), [reports, month]);
 
-  // Spend and impressions only — a presentation choice, not an arithmetic one.
-  // A projection column sitting beside spend, per campaign, reads as leads
-  // delivered by that campaign, which is a measurement this product does not
-  // publish. The month's projection is totalled once, in the card above, where
-  // the per-day column it sums is in view. This is also the filter's option
-  // list, from the same call, so the dropdown can only offer campaigns the
-  // month has rows for.
-  const breakdown = useMemo(
-    () => (isSplit(monthAll) ? sliceByCampaign(monthAll, SPEND_ACCRUING_FIELDS, campaigns) : []),
+  /**
+   * Every campaign the month has rows for — the filter's option list.
+   *
+   * Not gated on the month being split, which is the same correction the
+   * client's own Spend report carries and for the same reason. A month with one
+   * campaign in it used to produce an empty list and no dropdown at all, which
+   * left this screen with nothing on it naming the one campaign every figure
+   * came from. The control was suppressed as "a dropdown whose choices produce
+   * the identical table" — true of the numbers, and beside the point: what it
+   * offers is the campaign's NAME, and picking it puts that name on the card
+   * heading, the total row and the export filename.
+   *
+   * Keeping the two sides in step matters more here than the control does. An
+   * account manager reading this card and the client reading their own Spend
+   * report should not find one of them able to name the campaign and the other
+   * not — that is the disagreement this whole screen exists to rule out.
+   *
+   * Spend and impressions only — a presentation choice, not an arithmetic one.
+   * A projection column sitting beside spend, per campaign, reads as leads
+   * delivered by that campaign, which is a measurement this product does not
+   * publish. The month's projection is totalled once, in the card above, where
+   * the per-day column it sums is in view.
+   */
+  const campaignOptions = useMemo(
+    () => sliceByCampaign(monthAll, SPEND_ACCRUING_FIELDS, campaigns),
     [monthAll, campaigns],
+  );
+
+  /**
+   * The same slices, but only when there is a genuine split to show.
+   *
+   * Derived from `campaignOptions` rather than sliced again, so the dropdown and
+   * the by-campaign export cannot come to disagree about what a month contains.
+   * The gate stays HERE rather than on the option list: a by-campaign CSV of a
+   * single-campaign month is a breakdown of nothing, restating the total it sits
+   * beside, which is a different complaint from the one that put the dropdown
+   * back.
+   */
+  const breakdown = useMemo(
+    () => (isSplit(monthAll) ? campaignOptions : []),
+    [monthAll, campaignOptions],
   );
 
   /**
@@ -461,10 +492,15 @@ function ClientAccount({
    * corrected to something this month can show. The same call the client's own
    * Spend report makes, so an account manager filtering to PR is looking at the
    * rows the client would get by filtering to PR.
+   *
+   * Corrected against `campaignOptions`, not `breakdown`. Passing the gated list
+   * would make a single-campaign month reject its own only campaign and silently
+   * fall back to "All campaigns" — the dropdown would show a name and the table
+   * would ignore it.
    */
   const pick = useMemo(
-    () => pickCampaign(monthAll, breakdown, campaign),
-    [monthAll, breakdown, campaign],
+    () => pickCampaign(monthAll, campaignOptions, campaign),
+    [monthAll, campaignOptions, campaign],
   );
   const { key: picked, slice: pickedSlice, rows: raw } = pick;
 
@@ -537,12 +573,12 @@ function ClientAccount({
                 </select>
               </div>
               {/*
-                Only offered when the month holds more than one campaign. A
-                single-campaign month would get a two-option dropdown whose
-                choices produce the identical table, which reads as a control
-                that does nothing.
+                Offered whenever the month has a campaign in it at all, one
+                included — see `campaignOptions`. "All campaigns" stays on the
+                list even then: it is the default selection, and dropping it
+                would leave `picked` pointing at an option that isn't there.
               */}
-              {breakdown.length > 0 && (
+              {campaignOptions.length > 0 && (
                 <div className="field inline">
                   <label htmlFor="report-campaign">Campaign</label>
                   <select
@@ -551,7 +587,7 @@ function ClientAccount({
                     onChange={(e) => setCampaign(e.target.value)}
                   >
                     <option value={CAMPAIGN_ALL}>All campaigns</option>
-                    {breakdown.map((c) => (
+                    {campaignOptions.map((c) => (
                       <option key={campaignKey(c.id)} value={campaignKey(c.id)}>
                         {c.name} ({c.rows})
                       </option>
