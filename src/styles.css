@@ -3,10 +3,16 @@
 
    Two themes, one vocabulary. Every rule past this block reads a token and
    never a literal colour, which is the only reason a second theme costs a
-   hundred lines instead of a rewrite. `:root` is light and is what you get by
-   default; `[data-theme='dark']` overrides it. The attribute is set before
-   first paint by a script in index.html, so a dark-mode user never sees a
-   white flash on the way in.
+   hundred lines instead of a rewrite. `:root` is light and `[data-theme='dark']`
+   overrides it. The attribute is set before first paint by a script in
+   index.html, so nobody sees the wrong theme flash on the way in.
+
+   `:root` being light does NOT mean light is what you get by default — dark is.
+   The attribute is written on every load unless light was chosen on purpose, so
+   `:root` is the base of the cascade and dark is the default appearance. Those
+   were the same thing until the default flipped; see src/lib/theme.ts. Read
+   this block as "the palette everything falls back to", not "the palette users
+   see".
 
    Adding a colour anywhere below? Add a token here, in BOTH blocks. A literal
    is a bug that only shows up in the theme you weren't looking at.
@@ -33,7 +39,7 @@
      site --accent   #df7d33   -> --accent
    =========================================================================== */
 
-/* --- Light: the default ---------------------------------------------------
+/* --- Light: the cascade's base, and the opt-in theme -----------------------
    The accent is the site's, unchanged — it is the one thing that must be
    identical in both themes or the app stops looking like Adovia. Everything
    around it is rebuilt for a light ground rather than inverted, because an

@@ -14,18 +14,28 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--
       Runs before first paint, which is the whole point: a module can't, so
-      without this a dark-mode user gets a white flash on every cold load.
-      Duplicates `applyTheme` in src/lib/theme.ts — keep the key in step.
-      No stored value means no attribute, and :root is light.
+      without this a dark-mode user gets a white flash on every cold load. That
+      is now the default path rather than a minority one, so this script earns
+      its place more than it used to.
+
+      Duplicates `applyTheme` and DEFAULT_THEME in src/lib/theme.ts — keep the
+      key AND the default in step. The test is inverted from what you might
+      expect: dark is the default, so the attribute goes on unless light was
+      chosen on purpose. Absence of a stored value means dark, not light.
+
+      A storage failure (Safari private mode, site data blocked) leaves `light`
+      false and so lands on dark, which is the default — the same answer
+      storedTheme() gives when it catches. Do not "fix" this by moving the
+      attribute write inside the try.
     -->
     <script>
+      var light = false;
       try {
-        if (localStorage.getItem('adovia-theme') === 'dark') {
-          document.documentElement.dataset.theme = 'dark';
-        }
+        light = localStorage.getItem('adovia-theme-2') === 'light';
       } catch (e) {
-        /* storage blocked; light it is */
+        /* storage blocked; fall through to the default */
       }
+      if (!light) document.documentElement.dataset.theme = 'dark';
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -94,7 +94,7 @@ export default function Login() {
       </div>
       {/*
         The toggle is here too, not only behind the sign-in. Someone who wants
-        dark shouldn't have to cross a white screen to reach the switch, and
+        light shouldn't have to sign in before they can reach the switch, and
         the preference is stored per browser, so setting it here carries in.
       */}
       <div className="login-foot">
