@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Adovia One</title>
+    <!--
+      The mark alone, on the brand's dark ground. The full lockup does not
+      survive 16px — the wordmark turns to grey mush at tab size — so the
+      favicon is the rocket, which is the part that stays recognisable. SVG
+      rather than a set of PNGs: one file covers every display density.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      Runs before first paint, which is the whole point: a module can't, so
+      without this a dark-mode user gets a white flash on every cold load.
+      Duplicates `applyTheme` in src/lib/theme.ts — keep the key in step.
+      No stored value means no attribute, and :root is light.
+    -->
+    <script>
+      try {
+        if (localStorage.getItem('adovia-theme') === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch (e) {
+        /* storage blocked; light it is */
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

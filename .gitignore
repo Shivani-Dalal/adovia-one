@@ -1,0 +1,22 @@
+node_modules
+.npm-cache
+dist
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+*.log
+.vercel
+
+# Supabase CLI scratch — project ref and CLI version cache, written by
+# `supabase functions deploy`. Machine-local, not configuration.
+supabase/.temp
+
+# Per-machine tool permissions, as the filename says. `.claude/launch.json`
+# beside it IS shared — it pins the dev server to port 5273, which the Supabase
+# redirect allow-list is written against.
+.claude/settings.local.json
+
+# Excel writes these beside a workbook while it is open and deletes them on
+# close. One is currently on disk from a sample that was left open.
+~$*

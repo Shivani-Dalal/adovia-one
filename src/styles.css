@@ -1,0 +1,2394 @@
+/* ===========================================================================
+   Adovia One
+
+   Two themes, one vocabulary. Every rule past this block reads a token and
+   never a literal colour, which is the only reason a second theme costs a
+   hundred lines instead of a rewrite. `:root` is light and is what you get by
+   default; `[data-theme='dark']` overrides it. The attribute is set before
+   first paint by a script in index.html, so a dark-mode user never sees a
+   white flash on the way in.
+
+   Adding a colour anywhere below? Add a token here, in BOTH blocks. A literal
+   is a bug that only shows up in the theme you weren't looking at.
+
+   The dark values are COPIED from the marketing site's public/assets/theme.css,
+   not imported. Two repos, two deploys — a cross-repo import is a build-time
+   dependency between things that must be able to ship independently. If a
+   token changes there, change it here on purpose.
+
+   The left column is the marketing site's own token name, so a future drift
+   check is a straight read across. The right column is what this app calls it:
+   the site names surfaces by where they sit on the page (--band, --footer),
+   which is meaningless here, so they map onto the paper/ink vocabulary the
+   components already use. Renaming the components instead would have been a
+   hundred-file edit for no gain.
+
+     site --ground   #0e1524   -> --paper-2   page background
+     site --surface  #182337   -> --paper     cards, topbar, inputs' parent
+     site --band     #121b2e   -> --paper-3   sunken rows, table heads
+     site --footer   #0a101c   -> --field     input wells, the empty state
+     site --text     #f2f6fb   -> --ink
+     site --ink      #e2e8f0   -> --ink-2
+     site --muted    #7c8ca6   -> --muted
+     site --accent   #df7d33   -> --accent
+   =========================================================================== */
+
+/* --- Light: the default ---------------------------------------------------
+   The accent is the site's, unchanged — it is the one thing that must be
+   identical in both themes or the app stops looking like Adovia. Everything
+   around it is rebuilt for a light ground rather than inverted, because an
+   inverted dark theme gives you grey text on grey and calls it a design.
+   -------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --ink: #0e1524; /* the site's ground colour, working as text */
+  --ink-2: #24354f;
+  --muted: #5c6b83; /* 4.9:1 on the palest surface below — AA, not decoration */
+
+  --line: #dbe3ee;
+  --line-2: #eaeff6;
+
+  /*
+    Cards are white and the page is not, so a card lifts without a shadow
+    needing to say so. --field is a half-step under white: on a white card an
+    input has to read as a well you type into, and a border alone won't do it.
+  */
+  --paper: #ffffff;
+  --paper-2: #f4f7fb;
+  --paper-3: #eff3f9;
+  --field: #f8fafc;
+
+  --accent: #df7d33;
+  /*
+    Hover and active, NOT lightness — on a light ground both steps go darker,
+    on a dark ground both go lighter. The names are about state; only the
+    direction flips between the themes.
+  */
+  --accent-hi: #d5722a;
+  --accent-lo: #c26424;
+  /*
+    Accent as *text* is a different colour from accent as a fill. #df7d33 on
+    white is 2.95:1 and fails AA outright; this clears 5.4:1 on every surface
+    above.
+  */
+  --accent-ink: #9a4e11;
+  --accent-wash: rgb(223 125 51 / 10%);
+  --accent-line: rgb(223 125 51 / 45%);
+  /*
+    Dark navy on orange, not white, in BOTH themes. White on #df7d33 is 2.95:1
+    and fails at every size; this is 6.2:1. It is also what the site's own nav
+    CTA does.
+  */
+  --on-accent: #0e1524;
+
+  --good: #127034;
+  --bad: #b91c1c;
+  --warn: #a1470a;
+  --good-wash: rgb(18 112 52 / 9%);
+  --bad-wash: rgb(185 28 28 / 8%);
+  --warn-wash: rgb(161 71 10 / 9%);
+  --good-line: rgb(18 112 52 / 30%);
+  --bad-line: rgb(185 28 28 / 32%);
+
+  /*
+    Client bands on the daily entry grid, as space-separated channels so one
+    token can serve as a fill, a wash and a hairline: `rgb(var(--band-1) / 10%)`.
+
+    Five hues, and every one of them deliberately NOT a colour this app already
+    spends meaning on. Orange is the brand and marks an edited row, amber marks
+    the internal grid, green marks a saved line and red marks a destructive
+    button — a client banded in any of those would be a row that looks like it
+    is telling you something about its state when it is only telling you whose
+    it is. Blue, magenta, cyan, violet and slate are unused elsewhere and stay
+    unused elsewhere, which is what keeps this readable as identity rather than
+    as status.
+
+    Five is enough to run out of. They cycle, and two clients ten rows apart
+    sharing a hue costs nothing; two ADJACENT clients sharing one would cost the
+    whole point, which is why they are assigned by position on the grid rather
+    than by hashing an id.
+  */
+  --band-1: 29 78 216;
+  --band-2: 162 28 175;
+  --band-3: 14 116 144;
+  --band-4: 109 40 217;
+  --band-5: 71 85 105;
+
+  /* Translucent or dashed, so they can't be expressed as a flat token above. */
+  --topbar-bg: rgb(255 255 255 / 85%);
+  --dash: rgb(92 107 131 / 45%);
+  --scrim: rgb(14 21 36 / 45%);
+
+  --sans: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --display: 'Space Grotesk', var(--sans);
+
+  --r: 10px;
+  --r-lg: 14px;
+  --shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 8px 24px rgb(15 23 42 / 8%);
+}
+
+/* --- Dark: the marketing site's own palette ------------------------------- */
+
+[data-theme='dark'] {
+  /*
+    Not decoration: this re-skins the native date picker the whole DatePager
+    depends on. Without it the calendar popup opens as a white box.
+  */
+  color-scheme: dark;
+
+  --ink: #f2f6fb;
+  --ink-2: #e2e8f0;
+  --muted: #7c8ca6;
+
+  /*
+    Hairlines, not borrowed from the site — it has no border token because it
+    separates with whole bands of colour and this app separates with 1px. Both
+    are lifts off --paper rather than dimmed white, so a border never reads
+    faintly blue against the navy.
+  */
+  --line: #2a3b58;
+  --line-2: #212f47;
+
+  --paper: #182337;
+  --paper-2: #0e1524;
+  --paper-3: #121b2e;
+  --field: #0a101c;
+
+  --accent: #df7d33;
+  --accent-hi: #e68a38;
+  --accent-lo: #d8712f;
+  /* Lighter than the fill here, for the same reason the light one is darker. */
+  --accent-ink: #f0a367;
+  --accent-wash: rgb(223 125 51 / 14%);
+  --accent-line: rgb(223 125 51 / 42%);
+  --on-accent: #0e1524;
+
+  /*
+    Re-derived for a dark ground rather than carried over. The light theme's
+    #127034 / #b91c1c / #a1470a land near 1.5:1 on navy — a failed save would
+    have gone out in a red nobody could read.
+  */
+  --good: #4ade80;
+  --bad: #f87171;
+  --warn: #fbbf24;
+  --good-wash: rgb(74 222 128 / 12%);
+  --bad-wash: rgb(248 113 113 / 12%);
+  --warn-wash: rgb(251 191 36 / 12%);
+  --good-line: rgb(74 222 128 / 34%);
+  --bad-line: rgb(248 113 113 / 38%);
+
+  /* Lightened for navy, same five hues in the same order — a client that reads
+     blue in the light theme reads blue in the dark one. */
+  --band-1: 96 165 250;
+  --band-2: 232 121 249;
+  --band-3: 34 211 238;
+  --band-4: 167 139 250;
+  --band-5: 148 163 184;
+
+  --topbar-bg: rgb(18 27 46 / 88%);
+  --dash: rgb(124 140 166 / 55%);
+  --scrim: rgb(5 9 16 / 72%);
+
+  /*
+    On a light ground a shadow reads as elevation. On a dark one it mostly
+    disappears, so the top hairline does the lifting and the shadow only
+    anchors. Deeper and softer than the light one for that reason.
+  */
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 32%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper-2);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Shell ---------------------------------------------------------------- */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/*
+  Three surface levels, deepest at the back: --paper-2 page, --paper-3 chrome,
+  --paper cards. On white the topbar could be the same colour as a card and
+  still read as separate, because the border did all the work. On navy the
+  levels are what tell you the bar is fixed furniture and the cards are content
+  sitting on top of it.
+
+  Slightly translucent so content dissolves under it as it scrolls rather than
+  sliding under a hard edge — the bar is sticky, so this is visible constantly.
+*/
+.topbar {
+  background: var(--topbar-bg);
+  backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+@supports not (backdrop-filter: blur(8px)) {
+  .topbar {
+    background: var(--paper-3);
+  }
+}
+
+.topbar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+/*
+  The lockup is sized by HEIGHT with an auto width, never the other way round.
+  The artwork is 112×29, and pinning the width would let the height drift with
+  it — a logo that grows taller than the 60px bar it sits in.
+
+  `color` is deliberately not set. The wordmark paths fill with `currentColor`,
+  so leaving it to inherit is what makes the logo follow `--ink` into dark mode
+  and read correctly on any surface it is later dropped onto. Setting it here
+  would freeze it to the one place it happens to sit today.
+*/
+.brand svg {
+  height: 28px;
+  width: auto;
+  display: block;
+  /* The mark has ink to the very edge of the viewBox; without this the
+     optical left margin is smaller than every other item in the bar. */
+  margin-left: -1px;
+}
+
+/* The sign-in and account-not-set-up cards are not a 60px bar, and the lockup
+   is the only thing on the line — it can be the size it wants to be. */
+.login-card .brand {
+  margin-bottom: 4px;
+}
+
+.login-card .brand svg {
+  height: 34px;
+}
+
+.brand .ctx {
+  color: var(--muted);
+  font-weight: 500;
+  font-family: var(--sans);
+  font-size: 14px;
+  /*
+    The separator is drawn here rather than typed into the JSX, so the one place
+    that decides whether there is a context to show is also the only place that
+    can emit its punctuation. A "·" in the markup is a middot that outlives the
+    thing it was separating.
+  */
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.nav a {
+  padding: 8px 12px;
+  border-radius: var(--r);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.nav a:hover {
+  background: var(--line-2);
+}
+
+.nav a.active {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.whoami {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* --- Theme toggle --------------------------------------------------------- */
+
+.themetoggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.themetoggle svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/*
+  Under 720px the topbar is already fighting for room, so the word goes and the
+  icon carries it. The button keeps its aria-label either way, so nothing is
+  lost for a screen reader — only for a mouse, which still has the tooltip.
+*/
+@media (max-width: 720px) {
+  .tt-label {
+    display: none;
+  }
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 24px 96px;
+}
+
+.foot {
+  border-top: 1px solid var(--line);
+  padding: 20px 24px;
+  display: flex;
+  gap: 16px;
+  /* Needed once the left-hand item became a lockup instead of a line of text:
+     the default `stretch` leaves the mark pinned to the top of the row while
+     the sentence beside it wraps to two lines and grows downwards. */
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/*
+  Smaller than the header's 28px, and deliberately NOT scaled to the 13px text
+  beside it — at that size the wordmark stops reading as a mark and becomes a
+  third line of copy. 20px keeps ADOVIA a shade larger than the sentence, which
+  is what makes the eye take it as a signature rather than a sentence fragment.
+*/
+.foot .brand svg {
+  height: 20px;
+}
+
+/* --- Page head ------------------------------------------------------------ */
+
+.pagehead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.pagehead h1 {
+  font-family: var(--display);
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+
+.pagehead-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.mt {
+  margin-top: 14px;
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.error {
+  background: var(--bad-wash);
+  border: 1px solid var(--bad-line);
+  color: var(--bad);
+  padding: 10px 14px;
+  border-radius: var(--r);
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+
+.ok {
+  background: var(--good-wash);
+  border: 1px solid var(--good-line);
+  color: var(--good);
+  padding: 10px 14px;
+  border-radius: var(--r);
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+
+/* --- Cards ---------------------------------------------------------------- */
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.card-head h2 {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/*
+  A card that folds. The element is a real `<details>`, so most of the work
+  here is undoing the browser's default disclosure chrome and putting back one
+  we control.
+*/
+.card-fold > summary {
+  cursor: pointer;
+  /* Both spellings are needed: `list-style` covers Firefox and current
+     Chromium, the vendor pseudo-element covers Safari and older Chromium,
+     which ignore the former and would otherwise show a second, native
+     triangle next to ours. */
+  list-style: none;
+  /* The summary IS the head, but it also has to hold the caret, so the flex
+     row from `.card-head` gains a leading column rather than a new wrapper. */
+  gap: 10px;
+  justify-content: flex-start;
+  /* Zero when shut: a closed card should be a single bar of title, not a bar
+     with a strip of empty card under it. `.card-head`'s 16px comes back below
+     only when the panel is open. */
+  margin-bottom: 0;
+}
+
+.card-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.card-fold[open] > summary {
+  margin-bottom: 16px;
+}
+
+/* The caret. Drawn as a rotated border wedge rather than a glyph so it
+   inherits the ink colour and stays crisp at any zoom. */
+.card-fold > summary::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--ink-2);
+  border-bottom: 1.5px solid var(--ink-2);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.card-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.card-fold > summary:hover::before {
+  border-color: var(--ink);
+}
+
+/* Keyboard focus lands on the summary, and the ring has to be visible on a
+   row whose only content is text — no default outline survives the flex head
+   convincingly, so it is stated. */
+.card-fold > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--r);
+}
+
+/*
+  The line that stays readable whether the card is open or shut.
+
+  `margin-left: auto` pushes it to the far end of the head, away from the
+  title and the caret, so it reads as a status rather than as part of the
+  heading.
+*/
+.card-note {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* An `aside` under a folding card's lid, since it cannot live inside the
+   `<summary>` without its controls toggling the panel. */
+.card-head-aside {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* The controls that sit opposite a card title — a month picker and its export. */
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/*
+  The internal grid, marked so it cannot be mistaken for the client-facing one
+  at a glance. Ops types into both on the same screen, seconds apart; the visual
+  break is what stops a measured figure being entered where a published one goes.
+
+  The row heads are sunk the same way, but through `--rowhead-bg` rather than a
+  `background` here: the client colour bands paint over that surface and a flat
+  override at this specificity would win against them and take the colour off
+  the internal grid alone.
+*/
+.table.grid.internal thead th {
+  background: var(--paper-2);
+}
+
+.table.grid.internal {
+  border-left: 2px solid var(--warn);
+}
+
+/*
+  The same amber edge on the admin actuals table, which is a plain `.table`
+  rather than a `.grid`. One colour means one thing across the app: past this
+  line, the client cannot read it.
+*/
+.table.t-internal {
+  border-left: 2px solid var(--warn);
+}
+
+.table.t-internal thead th {
+  background: var(--paper-2);
+}
+
+/* --- The Client / Internal switch on Client detail --------------------------
+   A page-level switch, not a filter. The two sides of this page are the things
+   the product keeps apart — what Adovia stated and what Adovia measured — so the
+   control that moves between them has to read as a change of context rather than
+   as a view option, and has to say in words which one you are in.
+
+   The state classes are `open` and `closed`, not one class per view, and they
+   stay that way now the switch is down to two segments. What the bar signals is
+   binary — can this be on screen in front of the client or not — and that is a
+   different question from which view you are in. A third view was removed here
+   (Variance, which was `closed` despite rendering no internal figure, because a
+   gap plus the client's own number *is* the internal number); classes named after
+   views rather than after the warning would have had to be rewritten for that
+   removal, and these did not.
+   -------------------------------------------------------------------------- */
+
+.viewswitch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper-2);
+  /* The accent edge carries the state. It is the widest, flattest signal
+     available for "you have changed context", and it sits at the start of the
+     row so it is in view before the sentence is read. */
+  border-left: 3px solid var(--line);
+}
+
+.viewswitch.closed {
+  border-left-color: var(--warn);
+  background: var(--warn-wash);
+}
+
+.viewswitch .viewnote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  flex: 1 1 320px;
+}
+
+.viewswitch.closed .viewnote strong {
+  color: var(--warn);
+}
+
+/* On its own line below the switch when there is no room beside it — the
+   sentence is the part that must not be cut off. */
+@media (width <= 620px) {
+  .viewswitch {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.emptystate {
+  padding: 32px 20px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--paper-2);
+}
+
+.emptystate strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+/* --- Figures -------------------------------------------------------------- */
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+  transition: opacity 120ms ease;
+}
+
+.figures.dim {
+  opacity: 0.45;
+}
+
+.figures.small {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 0;
+}
+
+.figures > .figure {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+}
+
+.figures.small > .figure {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.figure-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.fig {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.fig.hero {
+  font-size: 38px;
+}
+
+/*
+  "Not yet entered". Deliberately unlike every other figure on the page —
+  dashed, muted, smaller, not bold. A client scanning the screen must be able to
+  tell at a glance which numbers Adovia has actually stated.
+
+  The dash is drawn against --muted, not --line. A hairline that is merely
+  *visible* between two panels is not enough here: this one has to survive being
+  glanced past at arm's length, because the whole null-is-not-zero claim is
+  carried by whether someone notices it. --field sinks it below the card so the
+  shape reads as an empty well even before the border registers.
+*/
+.fig.empty {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px dashed var(--dash);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  display: inline-block;
+  background: var(--field);
+}
+
+.stamp {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.note {
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/*
+  One note per campaign, so a single day can carry several. The rule between
+  them is doing real work: two notes run together read as one message with a
+  paragraph break, and the second campaign's name looks like a line inside the
+  first campaign's note.
+*/
+.daynote + .daynote {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.daynote > .muted.sm {
+  margin: 0 0 4px;
+}
+
+.asof {
+  font-size: 13px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+.btn {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+/*
+  Steps up the accent ramp rather than `filter: brightness(0.95)`. Darkening
+  worked on white; on navy it walks the button towards the background, so the
+  hover reads as the control going away. These are the site's own --accent-hi
+  and --accent-lo.
+*/
+.btn:hover:not(:disabled) {
+  background: var(--accent-hi);
+  border-color: var(--accent-hi);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--accent-lo);
+  border-color: var(--accent-lo);
+}
+
+/*
+  Greyed out rather than faded out. `opacity: 0.45` on a filled accent button
+  dilutes the label along with the fill: it left "Save 3 Sept 2026" as dark navy
+  on muddy brown, and the one thing a disabled button still has to do is say
+  what it would have done. Going neutral drops the colour without touching the
+  text contrast, and it also stops a dimmed orange reading as a second, weaker
+  brand colour next to the live one.
+
+  Ghost buttons keep the fade — they have no fill to neutralise, so this rule
+  would be invisible on them.
+*/
+.btn:disabled {
+  background: var(--line-2);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.btn.ghost:disabled {
+  background: transparent;
+  opacity: 0.55;
+}
+
+/*
+  Transparent rather than --paper. A ghost button filled with the card colour
+  vanished whenever one sat on a card — which is most of them, since the save
+  bar and every modal footer is --paper. The border carries it instead.
+*/
+.btn.ghost {
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--line);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--line-2);
+  border-color: var(--muted);
+}
+
+.btn.sm {
+  font-size: 13px;
+  padding: 6px 11px;
+}
+
+.btn.icon {
+  padding: 6px 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/*
+  Sunk below the card rather than level with it. On white, an input read as a
+  field because it was the same colour with a border round it; on navy that
+  same treatment reads as a disabled block, and a form stops looking typeable.
+  Recessing it is what restores the affordance.
+*/
+input,
+select,
+textarea {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink);
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--field);
+  width: 100%;
+}
+
+/*
+  Ticks and radios opt out of all of it, and have to say so explicitly.
+
+  Everything in the rule above is written for a control you type into: a
+  recessed panel, generous padding, and the full width of its field. A checkbox
+  is none of those things — it is a fixed-size glyph the browser draws itself,
+  and stretching it to `width: 100%` is not a cosmetic wobble. It threw the
+  importer's "Create this campaign" tick 680px wide, which pushed the words
+  naming the campaign onto the next line and left a lone box floating in the
+  middle of the modal: the one control on that screen where you have to be able
+  to see which name you are agreeing to create.
+
+  `revert` rather than a hand-written `width: 14px`, because these are the two
+  controls whose right size is the user's own — it tracks the OS and their text
+  scaling, and a fixed pixel value would quietly stop honouring both.
+*/
+input[type='checkbox'],
+input[type='radio'] {
+  all: revert;
+  /*
+    Set after the revert, not before — `all` would wipe it. This is the one
+    property a native tick actually wants from the theme: without it the browser
+    draws its own blue, which on the navy ground is the only blue on the screen.
+    The shared `:focus-visible` outline is unaffected; that rule is later in the
+    file and still wins.
+  */
+  accent-color: var(--accent);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+/*
+  Explicit, because the UA default derives placeholder colour from the input's
+  own colour and lands close enough to --ink here to be mistaken for a typed
+  value. On a screen whose whole claim is "a blank is not a zero", a
+  placeholder that looks entered is the worst available bug.
+*/
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.field.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.field.inline label {
+  margin: 0;
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.field.inline select {
+  width: auto;
+  min-width: 180px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+}
+
+.filters input {
+  width: 240px;
+}
+
+.filters select {
+  width: auto;
+}
+
+/*
+  A table cell holding controls rather than a value.
+
+  The blanket `width: 100%` on form controls above is right for the stacked
+  `.field` layouts it was written for, and wrong here: a table cell is as wide
+  as whatever slack the table has left over, so a three-option status select
+  stretched to ~440px and shouldered the Rename button beside it onto its own
+  line. The markup already says these belong together — they are separated by a
+  single space — so the fix is to let the control be its content's width and
+  keep the pair from wrapping.
+
+  Scoped to an explicit class rather than to `td`, because most cells in this
+  app hold figures, and a blanket `td select` rule would silently change any
+  future in-cell editor that genuinely does want the full width.
+*/
+.cellactions {
+  white-space: nowrap;
+}
+
+.cellactions select,
+.cellactions input {
+  width: auto;
+}
+
+.datepager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dateinput {
+  width: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.segmented button {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 13px;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.segmented button.on {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* --- Tables --------------------------------------------------------------- */
+
+.tablewrap {
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: middle;
+}
+
+.table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table .right {
+  text-align: right;
+}
+
+.table .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.table tr.voided td {
+  opacity: 0.55;
+}
+
+.table tbody tr:hover {
+  background: var(--paper-2);
+}
+
+/* --- Column groups: removed ------------------------------------------------
+   There used to be a `colgroups` banner row here — a second header row above
+   the headers, tinting columns by how private they were, with `cg-` on the
+   banner cell and `c-` on each column in the group.
+
+   All of it is gone, because the page-level Client / Internal switch made the
+   question it answered impossible to ask. No table mixes columns of
+   different privacy any more: you are in one account or another, every column
+   in front of you has the same answer, and that answer is stated in words in
+   the switch bar above. A per-column legend on top of that was restating the
+   frame in a quieter voice.
+
+   Table-wide privacy is now carried by `.table.t-internal` — one amber left
+   edge, same as the internal grid on the Daily entry page.
+   -------------------------------------------------------------------------- */
+
+/* The internal-note column should take the slack, not the short ones either side.
+   `width: 100%` squeezes every other column to min-content, and min-content for
+   "3 Sept 2026" or "16 minutes ago" is three stacked lines — which triples the
+   row height to save a few pixels of width the note was going to use anyway.
+
+   So `daycell` pins the two date-ish columns unwrappable and the note absorbs
+   what is left. Both are prose-in-a-narrow-column; neither is a figure, so
+   neither belongs to `num`. This only became visible once the retired columns
+   came out and there were four columns to divide instead of six. */
+.table .notecell {
+  width: 100%;
+}
+
+.table .daycell {
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--line-2);
+  color: var(--ink-2);
+}
+
+.pill.active,
+.pill.paid {
+  background: var(--good-wash);
+  color: var(--good);
+}
+
+.pill.issued {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+/* Part paid is not a milder green. It is an invoice with money still owed on it,
+   which puts it on the `issued` side of the only distinction this pill makes —
+   settled or not — so it borrows that colour rather than sitting between the two.
+   A halfway hue would suggest the balance is halfway, and the balance is not a
+   figure this schema records. */
+.pill.partially_paid {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+.pill.void,
+.pill.archived {
+  background: var(--bad-wash);
+  color: var(--bad);
+}
+
+/* --- Entry grid ----------------------------------------------------------- */
+
+.table.grid th.sticky {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+  z-index: 1;
+}
+
+.table.grid .rowhead {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  border-right: 1px solid var(--line-2);
+}
+
+/*
+  Client colour on the entry grid.
+
+  The grid is one flat list of lines and, once three clients each run three
+  campaigns, "PR" appears three times and nothing but a small indent says which
+  account you are typing into. That is a mis-entry waiting to happen on the one
+  screen where a mis-entry becomes a published figure. So each client gets a
+  hue, held by every line that belongs to them and by the total that closes the
+  group, and the colour is IDENTITY — it says whose row this is and nothing
+  about its state.
+
+  Applied to the first column only, not the whole row. That column is sticky, so
+  it is on screen whatever the horizontal scroll is doing, and it is the one
+  place the answer is needed; tinting the cells as well would put five washes
+  behind five columns of figures, which is decoration bought with legibility.
+
+  Both grids get it, and get it from the same assignment, so a campaign sits at
+  the same position in the same colour in the client-facing table and the
+  internal one. Ops moves between the two constantly and the visual link is what
+  makes that a glance rather than a re-read.
+*/
+.table.grid {
+  --rowhead-bg: var(--paper);
+}
+
+.table.grid.internal {
+  --rowhead-bg: var(--paper-2);
+}
+
+.table.grid tr.b1 {
+  --band: rgb(var(--band-1));
+  --band-wash: rgb(var(--band-1) / 10%);
+  --band-line: rgb(var(--band-1) / 38%);
+}
+
+.table.grid tr.b2 {
+  --band: rgb(var(--band-2));
+  --band-wash: rgb(var(--band-2) / 10%);
+  --band-line: rgb(var(--band-2) / 38%);
+}
+
+.table.grid tr.b3 {
+  --band: rgb(var(--band-3));
+  --band-wash: rgb(var(--band-3) / 10%);
+  --band-line: rgb(var(--band-3) / 38%);
+}
+
+.table.grid tr.b4 {
+  --band: rgb(var(--band-4));
+  --band-wash: rgb(var(--band-4) / 10%);
+  --band-line: rgb(var(--band-4) / 38%);
+}
+
+.table.grid tr.b5 {
+  --band: rgb(var(--band-5));
+  --band-wash: rgb(var(--band-5) / 10%);
+  --band-line: rgb(var(--band-5) / 38%);
+}
+
+/*
+  The wash is translucent and this column is sticky, so it cannot simply be the
+  background: rows would scroll visibly underneath it. Painting the wash as a
+  flat gradient layer ON TOP of the opaque surface colour gives the same tint
+  over something solid, in one property, in both themes.
+*/
+.table.grid th.rowhead {
+  background:
+    linear-gradient(var(--band-wash, transparent), var(--band-wash, transparent)),
+    var(--rowhead-bg);
+}
+
+.table.grid tr.dirty .rowhead {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/*
+  Campaign grouping. A split client gets a header row carrying the client's
+  name, its campaign lines indented beneath, and a derived total to close the
+  group. The indent is the only thing distinguishing "Google Ads" from a client
+  called Google Ads, so it is not decoration.
+*/
+.table.grid tr.grouphead th {
+  padding-top: 18px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  /* The client's own hue, and the strongest statement of it on the grid — this
+     is the line that names them. Falls back to muted so an unbanded grid still
+     renders exactly as it did before. */
+  color: var(--band, var(--muted));
+  border-right: 0;
+  border-bottom: 1px solid var(--band-line, var(--line-2));
+}
+
+.table.grid .rowhead.sub {
+  padding-left: 20px;
+  font-weight: 500;
+}
+
+/*
+  A dot in the client's colour on every campaign line.
+
+  The indent alone had to carry two jobs: "this is a campaign, not a client" and
+  "this campaign belongs to the client three rows up". It does the first well
+  enough and the second not at all once a group is taller than the screen. The
+  dot ties the line to its client without repeating the client's name on every
+  row, which would push the actual campaign name off the left of a column that
+  is already the narrowest thing on the page.
+*/
+.table.grid .rowhead.sub::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--band, var(--muted));
+}
+
+/*
+  The client total. Styled as a summary rather than as another input row —
+  it is the one line in the grid that cannot be typed into, and it should not
+  invite the attempt. See `TotalRow`: there is no column behind these figures.
+*/
+.table.grid tr.totalrow th,
+.table.grid tr.totalrow td {
+  /* Closed in the client's colour, so a group reads as bracketed top and
+     bottom rather than as a run of rows that happens to end. */
+  border-top: 1px solid var(--band-line, var(--line));
+  background: var(--paper-2);
+}
+
+.table.grid td.derived {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  padding-right: 8px;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.tag.saved {
+  background: var(--good-wash);
+  color: var(--good);
+}
+
+.tag.draft {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+/* Something is pending that the reader might not be looking at — currently the
+   unsaved-row count on a folded card's lid. */
+.tag.warn {
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+
+.cell {
+  width: 92px;
+  padding: 6px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-color: transparent;
+  background: transparent;
+}
+
+.cell:hover {
+  border-color: var(--line);
+}
+
+.cell:focus {
+  border-color: var(--accent);
+  background: var(--field);
+}
+
+/*
+  A prefilled projection carried from yesterday. Dashed and orange, and NOT
+  counted as a change until edited, so an absent-minded Save writes nothing. A
+  stale number that looks freshly entered is the exact failure this product is
+  positioned against.
+
+  The text is --accent-ink rather than --accent: at 14px in a dense grid the
+  fill-weight orange is legible but tiring, and ops reads this cell all day.
+  The dash stays at full --accent so the *state* still announces itself from
+  across the row even though the number itself is quieter.
+*/
+.cell.draft {
+  border: 1px dashed var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-wash);
+}
+
+.cell.bad {
+  border-color: var(--bad);
+  background: var(--bad-wash);
+}
+
+.cell.note {
+  width: 220px;
+  text-align: left;
+  font-variant-numeric: normal;
+}
+
+.savebar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+
+.savebar-note {
+  font-size: 14px;
+}
+
+/* --- Chart ---------------------------------------------------------------- */
+
+.chart {
+  margin: 0;
+}
+
+.chart svg {
+  width: 100%;
+  height: auto;
+}
+
+.chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/*
+  The campaign hues, resolved ONCE for every mark that can carry one.
+  A line, the dot that stands in for a line too short to draw, the swatch beside
+  a legend entry and the arc of the ring are four different elements that paint
+  the colour through four different properties — stroke, fill, background. Each
+  reading `--tone` means the assignment is stated in one place, so a campaign
+  cannot end up one colour in the ring and another in the chart underneath it.
+
+  Scoped to the two components rather than declared globally: `.t1` and `.none`
+  are short enough names to collide with something later, and a bare `.accent`
+  in a global sheet is an accident waiting for a component to be named badly.
+
+  These are the same five hues as the admin grid's `--band-*` rows, but the two
+  are keyed on DIFFERENT things — the grid bands a client, this tones a
+  campaign — so a colour matching across those two screens means nothing and is
+  not worth arranging. Within one screen, which is where a reader compares, the
+  ring and the chart under it agree.
+*/
+.chart .t1,
+.donut .t1 {
+  --tone: rgb(var(--band-1));
+}
+
+.chart .t2,
+.donut .t2 {
+  --tone: rgb(var(--band-2));
+}
+
+.chart .t3,
+.donut .t3 {
+  --tone: rgb(var(--band-3));
+}
+
+.chart .t4,
+.donut .t4 {
+  --tone: rgb(var(--band-4));
+}
+
+.chart .t5,
+.donut .t5 {
+  --tone: rgb(var(--band-5));
+}
+
+/*
+  Two tones that are not campaigns. `accent` is the brand orange, for the case
+  where there is a single line and no campaign to name; `none` is the neutral,
+  for the unattributed slice and for a measure — projected admissions — that is
+  deliberately NOT coloured as a campaign, because it is one number for the
+  client rather than a split.
+*/
+.chart .accent,
+.donut .accent {
+  --tone: var(--accent);
+}
+
+.chart .none,
+.donut .none {
+  --tone: var(--ink-2);
+}
+
+.chart .line {
+  fill: none;
+  stroke: var(--tone, var(--accent));
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+  Dash patterns, keyed on the series' POSITION rather than on its meaning.
+
+  This is the redundant encoding that stops a line from disappearing. Two
+  campaigns reporting the same figure across a stretch of days produce identical
+  paths, and the second one drawn covers the first exactly — the chart then
+  shows one line where there are two, which reads as "that campaign has no
+  data" rather than as a collision. Different dashes make the overlap show up as
+  an alternating line, which is legible as two.
+
+  `d0` is solid and is deliberately empty rather than `stroke-dasharray: none`:
+  the first series is the one most readers follow, and it should be the cleanest
+  mark on the chart. The patterns after it are ordered by how much ink they
+  keep, so the visual weight falls off in the same order as the legend.
+
+  These also carry the chart on a mono printout and for a reader who cannot
+  separate the hues, which is why the pattern is not reserved for the collision
+  case and switched on when one is detected — a chart that changes its encoding
+  depending on the data is one nobody can learn to read.
+*/
+.chart .line.d1 {
+  stroke-dasharray: 7 3;
+}
+
+.chart .line.d2 {
+  stroke-dasharray: 2 3;
+}
+
+.chart .line.d3 {
+  stroke-dasharray: 10 3 2 3;
+}
+
+.chart .line.d4 {
+  stroke-dasharray: 4 2 1 2;
+}
+
+/*
+  A dot marks a single stated day with gaps either side. It is a fill, and it
+  takes no dash — a dashed circle of this size renders as three commas.
+*/
+.chart .dot {
+  fill: var(--tone, var(--accent));
+  stroke: none;
+}
+
+.chart .axis {
+  font-size: 10px;
+  fill: var(--muted);
+  font-family: var(--sans);
+}
+
+.chart .axis.right {
+  text-anchor: end;
+}
+
+.legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 10px;
+}
+
+/*
+  18px rather than 14: the key has to show a dash pattern now, and at 14 the
+  longest of them (`d3`, a dash-dot) renders as a single dash with a nick out of
+  it, which is indistinguishable from `d1`.
+*/
+.key::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--tone, var(--accent));
+}
+
+/*
+  The patterns repeated as gradients, because the key is a filled box and not a
+  stroked line. The stops mirror the `stroke-dasharray` values above — if one
+  side is changed the other has to move with it, or the key stops describing the
+  chart. Kept adjacent for exactly that reason.
+*/
+.key.d1::before {
+  background: repeating-linear-gradient(
+    to right,
+    var(--tone, var(--accent)) 0 7px,
+    transparent 7px 10px
+  );
+}
+
+.key.d2::before {
+  background: repeating-linear-gradient(
+    to right,
+    var(--tone, var(--accent)) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.key.d3::before {
+  background: repeating-linear-gradient(
+    to right,
+    var(--tone, var(--accent)) 0 10px,
+    transparent 10px 13px,
+    var(--tone, var(--accent)) 13px 15px,
+    transparent 15px 18px
+  );
+}
+
+.key.d4::before {
+  background: repeating-linear-gradient(
+    to right,
+    var(--tone, var(--accent)) 0 4px,
+    transparent 4px 6px,
+    var(--tone, var(--accent)) 6px 7px,
+    transparent 7px 9px
+  );
+}
+
+.dl.up {
+  color: var(--good);
+}
+
+.dl.down {
+  color: var(--bad);
+}
+
+/* --- Donut ---------------------------------------------------------------- */
+
+.donut {
+  margin: 0;
+}
+
+/*
+  Ring and figures side by side, and the figures get the space that is left.
+  The ring is a fixed 240 because it is a drawing at a size that reads; the
+  table is `minmax(0, 1fr)` rather than `1fr` so a long campaign name wraps
+  inside its column instead of widening the grid and squeezing the ring.
+*/
+.donut-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+}
+
+.donut-body svg {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+}
+
+/*
+  `--line`, not a recessed surface token. The track is a hairline thickened to
+  34px, and it has to read against `--paper` — which is what `--line` is defined
+  against in both themes. The surface tokens are the other way round in dark
+  mode (`--paper-3` is DARKER than the card it would sit on), so a track drawn
+  in one would be invisible on exactly the theme where the gap it explains is
+  hardest to see.
+*/
+.donut-track {
+  fill: none;
+  stroke: var(--line);
+}
+
+.donut-arc {
+  fill: none;
+  stroke: var(--tone, var(--accent));
+  /*
+    Butt caps, explicitly. A round cap adds half the stroke width to each end of
+    every arc, which overlaps the neighbour and — on a slice of a degree or
+    two — draws a lozenge larger than the share it represents. The ring is the
+    one place in this app where a rounded corner would be a lie about a number.
+  */
+  stroke-linecap: butt;
+}
+
+.donut-total {
+  fill: var(--ink);
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.donut-sub {
+  fill: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+
+.donut-legend {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.donut-legend th,
+.donut-legend td {
+  padding: 7px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.donut-legend tr:last-child th,
+.donut-legend tr:last-child td {
+  border-bottom: 0;
+}
+
+.donut-legend th {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.donut-legend .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+/*
+  A square, not a line. The legend beside a ring is naming areas of colour, and
+  a 2px rule — which is what the chart's key uses, because a chart draws
+  lines — reads as a different chart's key sitting in the wrong place.
+*/
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 8px;
+  background: var(--tone, var(--accent));
+}
+
+@media (max-width: 720px) {
+  /*
+    Stacked, with the ring centred over the figures it explains. Below this the
+    two-column layout leaves the table about twelve characters wide, which wraps
+    every campaign name onto three lines.
+  */
+  .donut-body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+}
+
+/* --- Modal ---------------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  /*
+    Themed, and not by the same amount: a scrim works by pushing the page back,
+    and 45% of near-black over an already dark page barely separated the modal
+    from what it was covering. The dark theme's is 72% for that reason.
+  */
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 20px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--paper);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 480px;
+}
+
+/*
+  Sized to the importer's preview, which is the only thing that asks for it.
+
+  That table is eight columns — row, date, campaign, four figures, and the
+  verdict — and at 720px the verdict was the one that fell off the right edge.
+  It is also the only column that carries a sentence, so squeezed into the
+  overflow it wrapped to five lines and dragged the row 200px tall: a blocked
+  row appeared on screen as a large empty pink band, with the reason it was
+  blocked scrolled out of view. The preview exists to be read before the button
+  is pressed, and "cannot import — 13 September has not happened yet" is the
+  part of it that has to be read.
+
+  Still `max-width` over `width: 100%`, so a narrow screen gets the full width
+  and the honest horizontal scroll rather than a modal wider than the window.
+*/
+.modal.wide {
+  max-width: 960px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-head h2 {
+  font-family: var(--display);
+  font-size: 16px;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* --- Diff rows ------------------------------------------------------------
+   Once shared by the client-detail History modal and the Daily entry outlier
+   guard. The History modal is gone, so only the outlier guard is left — these
+   stay because that still renders "usually 340 → 12000" through them.
+
+   The timeline wrappers that went with the modal (.history, .history > li,
+   .history-when) were deleted rather than kept "in case": there is no revision
+   list left to stack, and dead selectors are how a stylesheet stops describing
+   the screen.
+   -------------------------------------------------------------------------- */
+
+.history-diff {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.history-diff li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+  flex-wrap: wrap;
+}
+
+.dl-label {
+  min-width: 160px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.was {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.arrow {
+  color: var(--muted);
+}
+
+.now {
+  font-weight: 600;
+}
+
+/* --- Login ---------------------------------------------------------------- */
+
+.login {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 20px;
+}
+
+.login-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow);
+}
+
+.login-card h1 {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  margin: 20px 0 8px;
+}
+
+.login-card .muted {
+  margin-bottom: 20px;
+  line-height: 1.55;
+}
+
+.login-card label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.login-card .btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.login-foot p {
+  margin: 0;
+}
+
+/* --- Loading -------------------------------------------------------------- */
+
+.full-spinner {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton-page {
+  height: 320px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(90deg, var(--line-2), var(--paper), var(--line-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .skeleton-page {
+    animation: none;
+  }
+}
+
+/* --- Narrow --------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .topbar-inner {
+    height: auto;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .nav {
+    order: 3;
+    width: 100%;
+  }
+
+  .whoami {
+    display: none;
+  }
+
+  .main {
+    padding: 20px 16px 80px;
+  }
+
+  .fig.hero {
+    font-size: 30px;
+  }
+
+  .row2 {
+    grid-template-columns: 1fr;
+  }
+
+  .filters input {
+    width: 100%;
+  }
+}
+
+/* ===========================================================================
+   Creatives — the client-supplied artwork library, shared by the client's
+   Creatives page and the admin client detail view.
+   =========================================================================== */
+
+.creatives {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.creative {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+}
+
+.creative-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--paper-2);
+  border: 1px solid var(--line-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.creative-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The fallback for anything without a preview: the file kind, said plainly. */
+.creative-kind {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.creative-body {
+  min-width: 0;
+}
+
+.creative-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.creative-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn.danger {
+  color: var(--bad);
+}
+
+.btn.ghost.danger:hover:not(:disabled) {
+  border-color: var(--bad);
+}
+
+/*
+  A filled destructive button, for the two controls that actually destroy
+  something: deleting a campaign and deleting a client.
+
+  Ghost-danger is right for a control that removes one file — it stays quiet
+  until you reach for it. It is wrong for the button at the end of a confirmation
+  that wipes an account, which should not look like every other secondary action
+  on the screen. Scoped away from `.ghost` so the existing quiet ones are
+  untouched.
+*/
+.btn.danger:not(.ghost) {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--paper);
+}
+
+.btn.danger:not(.ghost):hover:not(:disabled) {
+  background: var(--bad);
+  border-color: var(--bad);
+  filter: brightness(0.92);
+}
+
+/* --- Manage clients and campaigns ------------------------------------------
+   A list, not a table. Each client is a small block with its campaigns under
+   it, because the thing being read here is the shape of an account — how many
+   campaigns, in what state — rather than a set of values to compare down a
+   column. */
+
+.managelist {
+  display: grid;
+  gap: 14px;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.manageclient {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 12px 14px;
+}
+
+.manageclient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.managecamps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.managecamps li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line-2);
+  padding-top: 6px;
+}
+
+.managecamps .pill,
+.manageclient-head .pill {
+  margin-left: 8px;
+}
+
+/* What a client delete takes with it. Numbers in bold because the count is the
+   part that changes someone's mind. */
+.killlist {
+  margin: 10px 0;
+  padding-left: 20px;
+  font-size: 14px;
+  color: var(--ink-2);
+  display: grid;
+  gap: 4px;
+}
+
+.muted.sm,
+.note.sm {
+  font-size: 13px;
+}
+
+.note.sm {
+  margin-top: 4px;
+}
+
+/* The staged-files list under the upload form. */
+.filelist {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}
+
+.filelist li.uploading {
+  color: var(--accent-ink);
+}
+
+/* Month totals on the spend report. */
+.table tfoot th {
+  border-top: 2px solid var(--line);
+  font-weight: 700;
+  background: var(--paper-2);
+}
+
+@media (max-width: 640px) {
+  .creative {
+    grid-template-columns: 48px 1fr;
+    grid-template-areas:
+      'thumb body'
+      'actions actions';
+  }
+
+  .creative-thumb {
+    grid-area: thumb;
+    width: 48px;
+    height: 48px;
+  }
+
+  .creative-body {
+    grid-area: body;
+  }
+
+  .creative-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+  }
+}
+
+/* --- Sheet import ----------------------------------------------------------
+   The import modal asks a queue of questions about a file, and each answer
+   changes what the ones below it mean. These styles exist to keep that queue
+   readable at the width the modal actually opens at — nothing here is
+   decoration, and the two rules that matter are the header-row peek (which has
+   to look like the spreadsheet ops is holding) and the blocked-row treatment
+   (which has to be visible in a table of sixty otherwise-identical rows). */
+
+/* Section headings inside the modal. Matches `.field label` deliberately: a
+   question about the file and a question about a field are the same kind of
+   thing to the person answering them, and giving them two weights would imply
+   a hierarchy that is not there. */
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.plain {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.plain li {
+  padding: 3px 0;
+}
+
+/* The first rows of the file, as the file has them. Small and tight because it
+   is being scanned for shape rather than read — ops is looking for the row that
+   holds headings, not the contents of any cell. */
+.table.sheetpeek {
+  font-size: 12px;
+}
+
+.table.sheetpeek td {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.table.sheetpeek tr.picked td {
+  background: var(--accent-wash);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.table.sheetpeek .pickcell {
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.table.sheetpeek .pickcell label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* Two columns at modal width, one when there is no room. Six dropdowns stacked
+   in a single column pushes the preview below the fold, and the preview is the
+   part that has to be seen before the button is pressed. */
+.mapgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+@media (max-width: 640px) {
+  .mapgrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rowbtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* A row that will be skipped, marked so it reads as skipped at a glance rather
+   than only via its pill. Sixty rows of preview is too many to audit one pill
+   at a time, and the whole point of the preview is that the exceptions find the
+   reader instead of the other way round. */
+.table tr.blockedrow td {
+  background: var(--bad-wash);
+}
+
+/* The five plan states. `new` and `changed` are the two that will be written,
+   so they carry colour; the three that will not are grey, because a preview
+   whose every row is coloured tells the reader nothing about which ones matter. */
+.pill.new {
+  background: var(--good-wash);
+  color: var(--good);
+}
+
+.pill.changed {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+.pill.blocked {
+  background: var(--bad-wash);
+  color: var(--bad);
+}
