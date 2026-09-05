@@ -85,8 +85,8 @@ export type Totals<F extends string> = { [K in F]: number | null };
  * days for the month total: `projected_leads` tracks each day's spend rather
  * than standing still, so a month of them is the month's projection. See
  * `SpendTotals` in `spendReport.ts`, which carries the evidence and the one
- * caveat — `DailyEntry`'s carry-forward can commit an inherited projection if
- * ops edits another cell on the same row.
+ * caveat left — `DailyEntry` used to carry projections forward, so rows entered
+ * by hand before that was removed may repeat a figure nobody retyped.
  *
  * This function cannot tell any of that apart — it sums whatever fields and
  * whatever rows it is handed, and which direction you get is decided entirely by

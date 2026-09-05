@@ -73,9 +73,12 @@ interface RowState {
 
   /** The row as it exists in the database, or null if today has no row yet. */
   saved: DailyReport | null;
+  /**
+   * What is in the cells. Either a saved row's own figures or empty — never
+   * carried from another day. A date with no row starts blank, so every figure
+   * on screen was typed for the date it sits under.
+   */
   values: CellState;
-  /** True when values came from yesterday rather than from a saved row. */
-  draft: boolean;
   note: string;
 
   /** Adovia's own measurements for the day. Never leaves the admin side. */
@@ -194,8 +197,7 @@ export default function DailyEntry() {
     setError(null);
     setSaved(null);
 
-    const [clientsRes, campaignsRes, todayRes, prevRes, windowRes, actualsRes] =
-      await Promise.all([
+    const [clientsRes, campaignsRes, todayRes, windowRes, actualsRes] = await Promise.all([
       supabase
         .from('clients')
         .select('*')
@@ -211,10 +213,6 @@ export default function DailyEntry() {
         .select('*')
         .order('name', { ascending: true }),
       supabase.from('daily_report').select(REPORT_COLS).eq('date', d),
-      // The previous day, for prefill. One query for every client rather than
-      // one per client — this grid is the thing that has to feel instant or the
-      // entry stops happening.
-      supabase.from('daily_report').select(REPORT_COLS).eq('date', addDays(d, -1)),
       // The trailing fortnight, for the typo guard's sense of normal. Fetched
       // up front rather than on Save: ops pressing Save should not then wait on
       // a network round trip to find out the number was fine.
@@ -226,21 +224,9 @@ export default function DailyEntry() {
       supabase.from('daily_actuals').select('*').eq('date', d),
     ]);
 
-    if (
-      clientsRes.error ||
-      campaignsRes.error ||
-      todayRes.error ||
-      prevRes.error ||
-      actualsRes.error
-    ) {
+    if (clientsRes.error || campaignsRes.error || todayRes.error || actualsRes.error) {
       setError(
-        errorText(
-          clientsRes.error ??
-            campaignsRes.error ??
-            todayRes.error ??
-            prevRes.error ??
-            actualsRes.error,
-        ),
+        errorText(clientsRes.error ?? campaignsRes.error ?? todayRes.error ?? actualsRes.error),
       );
       setLoading(false);
       return;
@@ -260,9 +246,6 @@ export default function DailyEntry() {
     const todayRows = asRows<DailyReport>(todayRes.data);
     const byKeyToday = new Map(
       todayRows.map((m) => [rowKey(m.client_id, m.campaign_id), m]),
-    );
-    const byKeyPrev = new Map(
-      asRows<DailyReport>(prevRes.data).map((m) => [rowKey(m.client_id, m.campaign_id), m]),
     );
     const actualRows = asRows<DailyActuals>(actualsRes.data);
     const byKeyActuals = new Map(
@@ -307,50 +290,33 @@ export default function DailyEntry() {
               key,
               saved: today,
               values: cellsFrom(today),
-              draft: false,
               note: today.client_note ?? '',
               savedActuals,
               actuals: actualsFrom(savedActuals),
               actualNote: savedActuals?.note ?? '',
             };
           }
-          const prev = byKeyPrev.get(key);
+          // A date with no saved row starts blank — every cell, both halves.
+          //
+          // Projections used to be carried forward from the same campaign's
+          // previous day. They are not any more: a figure that arrives without
+          // anyone typing it is indistinguishable on screen from one that was
+          // checked, and Save wrote it as a stated projection either way. That
+          // is the same objection that always kept actuals and the notes out of
+          // the carry-forward — yesterday's explanation of yesterday's number,
+          // sitting under today's, is a caption attached to the wrong
+          // photograph — and it turns out to apply to projections too. Blank is
+          // the honest starting state: `null` here means Adovia has not stated
+          // this figure for this date, which is exactly what is true.
           return {
             client: c,
             campaign,
             key,
             saved: null,
             savedActuals,
-            // Never prefilled from yesterday. Actuals are measurements, and the
-            // rule that keeps ops honest about the client-facing figures applies
-            // with more force to the numbers Adovia checks itself against.
+            values: EMPTY,
             actuals: actualsFrom(savedActuals),
-            // Nor is the note, for the same reason and a sharper one: yesterday's
-            // explanation of yesterday's number, sitting under today's, is a
-            // caption attached to the wrong photograph.
             actualNote: savedActuals?.note ?? '',
-            // Prefill only the projections, and only from the same campaign's
-            // own previous day — `byKeyPrev` is keyed on the campaign, so a PR
-            // line never inherits the Google line's forecast. Copying
-            // yesterday's *actuals* forward would put a plausible spend figure
-            // in front of ops on a day nobody has checked, and one distracted
-            // Save publishes it as fact. Projections move slowly and are a
-            // stated intention, so carrying them is a genuine convenience;
-            // actuals are measurements and must be typed.
-            values: prev
-              ? {
-                  ...EMPTY,
-                  projected_impressions: toInput(prev.projected_impressions),
-                  projected_leads: toInput(prev.projected_leads),
-                  projected_admissions: toInput(prev.projected_admissions),
-                }
-              : EMPTY,
-            draft: Boolean(
-              prev &&
-                (prev.projected_impressions !== null ||
-                  prev.projected_leads !== null ||
-                  prev.projected_admissions !== null),
-            ),
             note: '',
           };
         }),
@@ -363,31 +329,24 @@ export default function DailyEntry() {
     if (date) void load(date);
   }, [date, load]);
 
-  const dirty = useMemo(() => rows.filter((r) => !sameAsSaved(r)), [rows]);
-
   /**
-   * The rows somebody actually typed into — a different question from `dirty`,
-   * and the one to ask before throwing work away.
+   * The rows Save would write — which, since nothing on this screen is filled in
+   * for you, is also exactly the rows somebody typed into.
    *
-   * `dirty` means "Save would write this", and it is right that a prefilled row
-   * counts: carrying yesterday's projections forward and pressing Save is the
-   * entire point of the prefill. But nothing is *lost* when a prefilled row is
-   * abandoned, because returning to this date rebuilds it identically from the
-   * same previous day. Warning about those would fire the confirmation below on
-   * every step of the pager for most clients, and a confirmation that appears
-   * when there is nothing to lose is how people learn to dismiss the one that
-   * matters.
+   * Those were two separate lists while projections were carried forward from
+   * the previous day. A prefilled row was dirty, because Save would write it,
+   * but nothing was *lost* by abandoning it, because reopening the date rebuilt
+   * it identically. So the unsaved-work confirmations had to ask the narrower
+   * question or they would have fired on every step of the pager, and a warning
+   * that appears when there is nothing to lose is how people learn to dismiss
+   * the one that matters.
    *
-   * The exclusion has to name all three ways a prefilled row can pick up typed
-   * content, because only the first of them clears `draft`: that flag drives the
-   * "prefilled" tag beside the figures and has to keep meaning "these came from
-   * yesterday", so `setNote` and `setActual` leave it alone on purpose.
+   * With no prefill there is no such row: every departure from the saved state
+   * got there by someone typing, so one list answers both questions. If a
+   * fill-forward of any kind ever comes back, the two questions come apart again
+   * and this has to split back into two lists.
    */
-  const typed = useMemo(
-    () =>
-      rows.filter((r) => !sameAsSaved(r) && !(r.draft && r.note === '' && actualsUnchanged(r))),
-    [rows],
-  );
+  const dirty = useMemo(() => rows.filter((r) => !sameAsSaved(r)), [rows]);
 
   /**
    * How many rows have pending edits in the ACTUALS half specifically.
@@ -475,7 +434,7 @@ export default function DailyEntry() {
    * exit somebody actually takes by accident.
    */
   function goToDate(next: ISODate) {
-    if (typed.length > 0) setLeaving(next);
+    if (dirty.length > 0) setLeaving(next);
     else setDate(next);
   }
 
@@ -499,8 +458,8 @@ export default function DailyEntry() {
   const blocker = useBlocker(
     useCallback<BlockerFunction>(
       ({ currentLocation, nextLocation }) =>
-        typed.length > 0 && currentLocation.pathname !== nextLocation.pathname,
-      [typed.length],
+        dirty.length > 0 && currentLocation.pathname !== nextLocation.pathname,
+      [dirty.length],
     ),
   );
 
@@ -508,9 +467,7 @@ export default function DailyEntry() {
   // would write one keystroke into every campaign of that client at once.
   function setCell(key: string, field: ReportField, raw: string) {
     setRows((rs) =>
-      rs.map((r) =>
-        r.key === key ? { ...r, values: { ...r.values, [field]: raw }, draft: false } : r,
-      ),
+      rs.map((r) => (r.key === key ? { ...r, values: { ...r.values, [field]: raw } } : r)),
     );
     setSaved(null);
   }
@@ -697,7 +654,7 @@ export default function DailyEntry() {
   const isToday = date === maxDate;
 
   return (
-    <Shell unsaved={{ count: typed.length, ask: () => setSigningOut(true) }}>
+    <Shell unsaved={{ count: dirty.length, ask: () => setSigningOut(true) }}>
       <PageHead
         title="Daily entry"
         sub={
@@ -807,8 +764,9 @@ export default function DailyEntry() {
           // campaigns occupies three rows and must still appear once.
           clients={[...new Map(rows.map((r) => [r.client.id, r.client])).values()]}
           dateLabel={formatDateLong(date)}
-          // Only a SAVED unattributed row counts. A blank prefilled line is not
-          // a figure on the day and warning about it would cry wolf on every
+          // Only a SAVED unattributed row counts. The grid offers a client an
+          // unattributed line whether or not anything is on it, and an empty one
+          // is not a figure on the day; warning about it would cry wolf on every
           // client who simply has not been entered yet.
           hasUnattributed={(id) =>
             rows.some(
@@ -911,23 +869,18 @@ export default function DailyEntry() {
                       <tr className={`${band}${rowDirty ? ' dirty' : ''}`}>
                         <th className={`sticky rowhead${isSplit ? ' sub' : ''}`}>
                           {label}
-                          {r.saved ? (
-                            <span className="tag saved">saved</span>
-                          ) : r.draft ? (
-                            <span className="tag draft">prefilled</span>
-                          ) : null}
+                          {r.saved ? <span className="tag saved">saved</span> : null}
                         </th>
 
                         {HEADS.map((h) => {
                           const raw = r.values[h.field];
                           const bad = isBadFigure(raw);
-                          const isDraft = r.draft && raw !== '';
                           return (
                             <td key={h.field} className="num">
                               <input
                                 data-cell
                                 inputMode="decimal"
-                                className={`cell${isDraft ? ' draft' : ''}${bad ? ' bad' : ''}`}
+                                className={`cell${bad ? ' bad' : ''}`}
                                 value={raw}
                                 placeholder="—"
                                 aria-label={`${r.client.name} ${label} ${h.short}`}
@@ -1085,8 +1038,8 @@ export default function DailyEntry() {
             </table>
           </div>
           <p className="muted mt sm">
-            Never prefilled from yesterday. A measurement carried forward is a guess wearing
-            a measurement&rsquo;s clothes.
+            Nothing here is carried forward from yesterday. A measurement carried forward is a
+            guess wearing a measurement&rsquo;s clothes.
           </p>
         </Card>
       )}
@@ -1094,15 +1047,14 @@ export default function DailyEntry() {
       <div className="savebar">
         <div className="savebar-note">
           {/*
-            Prefilled projections are shown dashed and are NOT counted as dirty
-            until touched, so a blind Save writes nothing. A stale number that
-            looks freshly entered is exactly the failure this product is
-            positioned against.
+            The grid puts nothing in a cell that nobody typed, so a blind Save
+            writes nothing at all. A stale number that looks freshly entered is
+            exactly the failure this product is positioned against, and the only
+            reliable way to avoid it is to never put the number there.
           */}
           {dirty.length === 0 ? (
             <span className="muted">
-              Nothing to save. Blank cells stay “not yet entered”, not zero. Prefilled
-              projections are drafts until you edit them.
+              Nothing to save. Blank cells stay “not yet entered”, not zero.
             </span>
           ) : (
             <span>
@@ -1138,7 +1090,7 @@ export default function DailyEntry() {
       */}
       {leaving ? (
         <DiscardModal
-          rows={typed}
+          rows={dirty}
           exit={{ kind: 'date', date: leaving }}
           onCancel={() => setLeaving(null)}
           onConfirm={() => {
@@ -1148,7 +1100,7 @@ export default function DailyEntry() {
         />
       ) : signingOut ? (
         <DiscardModal
-          rows={typed}
+          rows={dirty}
           exit={{ kind: 'signout' }}
           onCancel={() => setSigningOut(false)}
           /*
@@ -1161,7 +1113,7 @@ export default function DailyEntry() {
         />
       ) : blocker.state === 'blocked' ? (
         <DiscardModal
-          rows={typed}
+          rows={dirty}
           exit={{ kind: 'route' }}
           onCancel={() => blocker.reset()}
           onConfirm={() => blocker.proceed()}

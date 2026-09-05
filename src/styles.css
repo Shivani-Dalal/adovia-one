@@ -1407,11 +1407,6 @@ a:focus-visible {
   color: var(--good);
 }
 
-.tag.draft {
-  background: var(--accent-wash);
-  color: var(--accent-ink);
-}
-
 /* Something is pending that the reader might not be looking at — currently the
    unsaved-row count on a folded card's lid. */
 .tag.warn {
@@ -1438,21 +1433,12 @@ a:focus-visible {
 }
 
 /*
-  A prefilled projection carried from yesterday. Dashed and orange, and NOT
-  counted as a change until edited, so an absent-minded Save writes nothing. A
-  stale number that looks freshly entered is the exact failure this product is
-  positioned against.
-
-  The text is --accent-ink rather than --accent: at 14px in a dense grid the
-  fill-weight orange is legible but tiring, and ops reads this cell all day.
-  The dash stays at full --accent so the *state* still announces itself from
-  across the row even though the number itself is quieter.
+  There is deliberately no "prefilled" cell state, and no `.tag.draft` above it.
+  Daily entry used to carry yesterday's projections into an empty day and mark
+  them dashed-and-orange. The styling went with the behaviour: the honest way to
+  stop a stale number from looking freshly entered is to not put the number on
+  screen, not to colour it differently and hope the colour is read.
 */
-.cell.draft {
-  border: 1px dashed var(--accent);
-  color: var(--accent-ink);
-  background: var(--accent-wash);
-}
 
 .cell.bad {
   border-color: var(--bad);

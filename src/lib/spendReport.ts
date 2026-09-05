@@ -99,8 +99,8 @@ const SPEND_HEADERS = [
  *
  * `leads` is the newer one and it reverses an earlier decision here, so the
  * reasoning is worth keeping. This cell used to be deliberately empty, on the
- * grounds that ops prefills each day's projections from the day before and a
- * month of them is therefore one standing forecast restated thirty times. The
+ * grounds that ops prefilled each day's projections from the day before and a
+ * month of them was therefore one standing forecast restated thirty times. The
  * stored data does not behave that way: `projected_leads` moves every day in
  * proportion to that day's spend — around one lead per ₹1,400 across Jaro's PR
  * campaign — and falls to zero on days with no spend. It is a per-day figure
@@ -108,13 +108,16 @@ const SPEND_HEADERS = [
  * projection, which is the number a client is actually trying to read off this
  * sheet.
  *
- * The carry-forward is still real, and it is the thing to watch. `DailyEntry`
- * prefills tomorrow's projections from today's, and while a purely prefilled
- * row is excluded from the save set, editing any other cell on that row clears
- * the draft flag and commits the inherited figures with it. So a hand-entered
- * client CAN accumulate repeated projections in a way an imported one does not,
- * and this total would overstate them. That is an entry-side problem — the fix
- * belongs in `DailyEntry`, not in a total that refuses to add up correct data.
+ * The carry-forward this used to warn about is gone: `DailyEntry` no longer
+ * prefills anything, so from here on every projection in the table was typed
+ * for the date it sits under. It was a live hazard while it lasted, and worse
+ * than the old note admitted — a prefilled row counted as dirty, so a single
+ * Save committed the inherited figures whether or not anything else on the row
+ * was touched. Which means rows entered by hand BEFORE the removal may still
+ * hold repeated projections, and this total will faithfully add them up. That
+ * is history in the data rather than a fault in the sum, and not something a
+ * total should second-guess: the fix for a wrong stored figure is to correct
+ * the row.
  *
  * `admissions` is summed the same way, and the null return is what makes that
  * safe rather than presumptuous. The column is null in every row currently
