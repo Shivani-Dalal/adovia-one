@@ -481,10 +481,18 @@ function ClientAccount({
    * single-campaign month is a breakdown of nothing, restating the total it sits
    * beside, which is a different complaint from the one that put the dropdown
    * back.
+   *
+   * Counted on the SLICES and not with `isSplit`, which counts distinct
+   * campaign ids across the raw rows. Those two disagree exactly when a month
+   * holds rows for a campaign that states no figure — and an export is the
+   * worse place for that to land, because a file outlives the screen it came
+   * from. `isSplit` is still right further down this page, where it decides
+   * whether the day tables carry a Campaign column: those tables list rows, so
+   * a row with nothing in it still needs saying which campaign it is under.
    */
   const breakdown = useMemo(
-    () => (isSplit(monthAll) ? campaignOptions : []),
-    [monthAll, campaignOptions],
+    () => (campaignOptions.length > 1 ? campaignOptions : []),
+    [campaignOptions],
   );
 
   /**

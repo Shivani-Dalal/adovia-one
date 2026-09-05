@@ -172,10 +172,28 @@ export interface CampaignSlice<F extends string> {
  * numbers move is one a reader cannot scan down twice, and "biggest first"
  * silently editorialises about which campaign matters.
  *
- * Only campaigns that actually have rows appear. An active campaign with
- * nothing entered is absent rather than shown as a line of dashes — the caller
- * knows the full campaign list and can say so more precisely than a row of
- * blanks can.
+ * Only campaigns that STATE something appear. A campaign with nothing entered
+ * is absent rather than shown as a line of dashes — the caller knows the full
+ * campaign list and can say so more precisely than a row of blanks can.
+ *
+ * The test is on the totals and not on whether rows exist, and the difference
+ * is not hypothetical. A row whose every figure is null is still a row, so
+ * grouping by presence let one through and printed the exact line of dashes
+ * this rule was written to prevent: five of them reached a client's September
+ * breakdown, left behind by dates somebody opened, was handed prefilled
+ * projections on, and cleared again before saving.
+ *
+ * Dropping a slice cannot shrink the breakdown's total, which is what keeps
+ * this safe beside the archived-campaign rule below. A slice stating none of
+ * `fields` contributes null to every column, so the total under it is the same
+ * number whether the row is listed or not — nothing is being hidden, and a row
+ * that can only ever say "we don't know" once per column is not information the
+ * reader loses.
+ *
+ * Judged against `fields`, not against every column the underlying rows carry.
+ * A slice whose only stated figure is one this card does not print would be a
+ * line of dashes ON THIS CARD whatever it holds elsewhere, and the rule is
+ * about what the reader sees.
  *
  * MIND THE FIELDS. This groups by campaign, not by date, so each slice normally
  * spans every day in `rows`. Pass `SPEND_ACCRUING_FIELDS` when `rows` covers
@@ -209,10 +227,12 @@ export function sliceByCampaign<F extends string>(
   if (grouped.has(null)) keys.push(null);
 
   const name = campaignNamer(campaigns);
-  return keys.map((id) => {
-    const rs = grouped.get(id) ?? [];
-    return { id, name: name(id), totals: sumFields(rs, fields), rows: rs.length };
-  });
+  return keys
+    .map((id) => {
+      const rs = grouped.get(id) ?? [];
+      return { id, name: name(id), totals: sumFields(rs, fields), rows: rs.length };
+    })
+    .filter((s) => fields.some((f) => s.totals[f] !== null));
 }
 
 /* -------------------------------------------------------- picking one --- */

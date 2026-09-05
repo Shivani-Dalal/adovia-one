@@ -20,7 +20,6 @@ import {
 import {
   campaignKey,
   foldToDays,
-  isSplit,
   pickCampaign,
   sliceByCampaign,
   CAMPAIGN_ALL,
@@ -154,10 +153,19 @@ export default function SpendReport() {
    * stays on the CARD: a one-line "By campaign" table restating the total
    * directly above it is a breakdown of nothing, which is a different complaint
    * from the one that put the dropdown back.
+   *
+   * Counted on the SLICES and not with `isSplit`, which counts distinct
+   * campaign ids across the raw rows. Those two disagree exactly when a month
+   * holds rows for a campaign that states no figure, and the disagreement is
+   * the whole one-line case: three campaigns present, one of them with
+   * anything in it, `isSplit` saying "split" and the card underneath it
+   * rendering the single line this gate was written to suppress. What makes a
+   * breakdown worth printing is more than one campaign to compare, and the
+   * slices are the list of campaigns that have something to compare.
    */
   const breakdown = useMemo(
-    () => (isSplit(monthAll) ? campaignOptions : []),
-    [monthAll, campaignOptions],
+    () => (campaignOptions.length > 1 ? campaignOptions : []),
+    [campaignOptions],
   );
 
   /**
