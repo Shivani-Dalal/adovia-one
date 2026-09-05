@@ -146,27 +146,24 @@ export default function SpendReport() {
   );
 
   /**
-   * The same slices, but only when there is a genuine split to show.
+   * The same slices, and the card shows for one campaign as readily as for six.
    *
-   * Derived from `campaignOptions` rather than sliced again, so the card and
-   * the dropdown cannot come to disagree about what a month contains. The gate
-   * stays on the CARD: a one-line "By campaign" table restating the total
-   * directly above it is a breakdown of nothing, which is a different complaint
-   * from the one that put the dropdown back.
+   * The same list as `campaignOptions`, aliased rather than re-sliced, so the
+   * card and the dropdown cannot come to disagree about what a month contains.
    *
-   * Counted on the SLICES and not with `isSplit`, which counts distinct
-   * campaign ids across the raw rows. Those two disagree exactly when a month
-   * holds rows for a campaign that states no figure, and the disagreement is
-   * the whole one-line case: three campaigns present, one of them with
-   * anything in it, `isSplit` saying "split" and the card underneath it
-   * rendering the single line this gate was written to suppress. What makes a
-   * breakdown worth printing is more than one campaign to compare, and the
-   * slices are the list of campaigns that have something to compare.
+   * There used to be a gate here suppressing a single-campaign card, on the
+   * grounds that one line restating the total below it is a breakdown of
+   * nothing. That has now been overturned twice for the same reason. What a
+   * one-line breakdown offers is not arithmetic but the campaign's NAME, and
+   * the figures it sits under carry no name of their own — first the filter
+   * was restored on single-campaign months on that argument, and now the card
+   * is, after a PR-only September left a client reading a month of spend with
+   * nothing on the page attributing it.
+   *
+   * Nothing is needed here for the empty case: `sliceByCampaign` returns no
+   * slices for a month with nothing entered, so the card does not render.
    */
-  const breakdown = useMemo(
-    () => (campaignOptions.length > 1 ? campaignOptions : []),
-    [campaignOptions],
-  );
+  const breakdown = campaignOptions;
 
   /**
    * The month's rows, narrowed to the chosen campaign — and the choice itself,
@@ -406,15 +403,24 @@ export default function SpendReport() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr>
-                  <th>{month && monthLabel(month)} total</th>
-                  <th className="num">{moneyExact(totals.spend) ?? <Blank />}</th>
-                  <th className="num">{count(totals.impressions) ?? <Blank />}</th>
-                  <th className="num">{count(totals.leads) ?? <Blank />}</th>
-                  <th className="num">{spendDays}</th>
-                </tr>
-              </tfoot>
+              {/*
+                Dropped for a single campaign, where every cell repeats the one
+                line above it — Days included, since a lone campaign's row count
+                and the month's day count are the same number. The objection to
+                a one-campaign card was always the restating; the line earns its
+                place by naming the campaign, and a footer under it does not.
+              */}
+              {breakdown.length > 1 && (
+                <tfoot>
+                  <tr>
+                    <th>{month && monthLabel(month)} total</th>
+                    <th className="num">{moneyExact(totals.spend) ?? <Blank />}</th>
+                    <th className="num">{count(totals.impressions) ?? <Blank />}</th>
+                    <th className="num">{count(totals.leads) ?? <Blank />}</th>
+                    <th className="num">{spendDays}</th>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
           <p className="muted mt sm">

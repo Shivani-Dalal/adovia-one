@@ -333,9 +333,27 @@ export default function Overview() {
   /** True when the day carries figures from more than one campaign. */
   const split = useMemo(() => isSplit(rows), [rows]);
 
+  /**
+   * The day's campaigns, one line each — including when there is only one.
+   *
+   * Not gated on `split`, and that is a reversal. The old rule was that a
+   * single campaign produces one line restating the four figures directly
+   * above it, so the card was suppressed. True about the numbers, and it
+   * misses what the card is for: the figures at the top of this page are
+   * unlabelled, and this is the only thing on the day that says which campaign
+   * they came from. A client reading a PR-only September saw a day's spend
+   * with nothing naming PR. That is the same correction already made for the
+   * Spend report's campaign filter, which was restored on single-campaign
+   * months for exactly this reason — what it offers is the NAME.
+   *
+   * Suppressing the card is still right when there is nothing to name, and
+   * that case is handled by `sliceByCampaign` returning no slices rather than
+   * by a gate here: a day with no entry has no rows, and a day whose only rows
+   * state nothing has no slices. Either way the card does not render.
+   */
   const breakdown = useMemo(
-    () => (split ? sliceByCampaign(rows, SPEND_FIELDS, campaigns) : []),
-    [split, rows, campaigns],
+    () => sliceByCampaign(rows, SPEND_FIELDS, campaigns),
+    [rows, campaigns],
   );
 
   /**
@@ -449,9 +467,9 @@ export default function Overview() {
           </div>
 
           {/*
-            Only when there is more than one campaign on the day. A single
-            campaign would produce one line restating the four figures directly
-            above it, which implies a split exists where none does.
+            Whenever at least one campaign on the day states something. See
+            `breakdown` above for why one line is worth printing and why no
+            gate is needed for the empty case.
           */}
           {breakdown.length > 0 && (
             <Card title="By campaign">
@@ -486,22 +504,43 @@ export default function Overview() {
                     carries its own forecast and their sum is the day's, whereas
                     down a month the same forecast is restated daily and adding
                     it up would multiply the target by the number of days.
+
+                    Dropped when there is one line, where a total row would
+                    repeat that line cell for cell. The objection to a
+                    one-campaign card was always the restating; the line itself
+                    earns its place by naming the campaign, and a footer under
+                    it does not.
                   */}
-                  <tfoot>
-                    <tr>
-                      <th>{formatDate(selected!)} total</th>
-                      <th className="num">{moneyExact(totals.ad_spend) ?? <Blank />}</th>
-                      <th className="num">{count(totals.impressions) ?? <Blank />}</th>
-                      <th className="num">{count(totals.projected_leads) ?? <Blank />}</th>
-                      <th className="num">{count(totals.projected_admissions) ?? <Blank />}</th>
-                    </tr>
-                  </tfoot>
+                  {breakdown.length > 1 && (
+                    <tfoot>
+                      <tr>
+                        <th>{formatDate(selected!)} total</th>
+                        <th className="num">{moneyExact(totals.ad_spend) ?? <Blank />}</th>
+                        <th className="num">{count(totals.impressions) ?? <Blank />}</th>
+                        <th className="num">{count(totals.projected_leads) ?? <Blank />}</th>
+                        <th className="num">
+                          {count(totals.projected_admissions) ?? <Blank />}
+                        </th>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
+              {/*
+                The dash sentence used to say a dash was "a campaign Adovia
+                hasn't entered for this day". It cannot mean that any more — a
+                campaign that states nothing is no longer listed at all — so it
+                now describes a missing FIGURE on a campaign that did report,
+                and the absence gets its own sentence rather than being left
+                for the client to infer from a name that is not there.
+              */}
               <p className="muted mt sm">
-                The figures at the top of this page are these lines added up. A dash is a
-                campaign Adovia hasn&rsquo;t entered for this day — the total covers the
-                ones they have, so it can describe part of a day rather than none of it.
+                {breakdown.length > 1
+                  ? 'The figures at the top of this page are these lines added up.'
+                  : 'Every figure at the top of this page came from this campaign.'}{' '}
+                A dash is a figure Adovia hasn&rsquo;t entered yet — the figures above
+                cover the ones they have, so they can describe part of a day rather than
+                none of it. A campaign with nothing entered for this day is not listed.
               </p>
             </Card>
           )}

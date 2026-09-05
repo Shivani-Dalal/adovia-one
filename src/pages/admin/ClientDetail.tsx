@@ -473,27 +473,25 @@ function ClientAccount({
   );
 
   /**
-   * The same slices, but only when there is a genuine split to show.
+   * The same slices, offered for export whenever the month has any.
    *
-   * Derived from `campaignOptions` rather than sliced again, so the dropdown and
-   * the by-campaign export cannot come to disagree about what a month contains.
-   * The gate stays HERE rather than on the option list: a by-campaign CSV of a
-   * single-campaign month is a breakdown of nothing, restating the total it sits
-   * beside, which is a different complaint from the one that put the dropdown
-   * back.
+   * The same list as `campaignOptions`, aliased rather than re-sliced, so the
+   * dropdown and the by-campaign export cannot come to disagree about what a
+   * month contains.
    *
-   * Counted on the SLICES and not with `isSplit`, which counts distinct
-   * campaign ids across the raw rows. Those two disagree exactly when a month
-   * holds rows for a campaign that states no figure — and an export is the
-   * worse place for that to land, because a file outlives the screen it came
-   * from. `isSplit` is still right further down this page, where it decides
-   * whether the day tables carry a Campaign column: those tables list rows, so
-   * a row with nothing in it still needs saying which campaign it is under.
+   * There used to be a gate suppressing a single-campaign export, on the
+   * grounds that a one-line CSV restates the total beside it. The client's
+   * Spend report no longer hides that card, and this is the file version of
+   * the same table — a month an account manager can see broken down on the
+   * client's screen and cannot export from ours is precisely the two-sides
+   * disagreement this page exists to avoid. The one line names the campaign,
+   * which is the whole reason it is worth printing.
+   *
+   * `isSplit` is still right further down this page, where it decides whether
+   * the day tables carry a Campaign column: those tables list rows, so a row
+   * with nothing in it still needs saying which campaign it sits under.
    */
-  const breakdown = useMemo(
-    () => (campaignOptions.length > 1 ? campaignOptions : []),
-    [campaignOptions],
-  );
+  const breakdown = campaignOptions;
 
   /**
    * The month's rows, narrowed to the chosen campaign — and the choice itself,
